@@ -30,6 +30,25 @@
   document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
   setLang(new URLSearchParams(location.search).get('lang') || store.get() || 'de');
 
+  /* ---------- 1b. Menü auf dem Handy ---------- */
+  const navEl = document.querySelector('.nav');
+  const menuBtn = navEl.querySelector('.menu-btn');
+  const menuLinks = [...navEl.querySelectorAll('.nav-links a')];
+  function setMenu(open) {
+    navEl.classList.toggle('open', open);
+    root.classList.toggle('menu-open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    const label = menuBtn.querySelector('.sr');
+    label.dataset.i18n = open ? 'menuClose' : 'menuOpen';
+    label.textContent = I18N[root.lang][label.dataset.i18n];
+    if (open) menuLinks[0].focus();
+  }
+  menuBtn.addEventListener('click', () => setMenu(!navEl.classList.contains('open')));
+  menuLinks.forEach(a => a.addEventListener('click', () => setMenu(false)));
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape' && navEl.classList.contains('open')) { setMenu(false); menuBtn.focus(); }
+  });
+
   /* ---------- 2. Farbe der Seite ---------- */
   const grounds = [...document.querySelectorAll('[data-ground]')];
   const io = new IntersectionObserver(entries => {

@@ -5,7 +5,7 @@
    ============================================================ */
 const I18N = {
   de: {
-    skip: "Zur Karte springen",
+    skip: "Zur Karte springen", menuOpen: "Menü öffnen", menuClose: "Menü schließen",
     navBowls: "Bowls", navPasta: "Pasta", navOven: "Ofen", navBrews: "Kaffee", navVisit: "Besuch",
     heroTitle: "THE BAKERY", heroLine: "frisch im Designer Outlet Salzburg", heroHint: "Scroll, sie läuft schon vor",
     bowlsEyebrow: "Täglich 11 bis 17 Uhr",
@@ -25,7 +25,7 @@ const I18N = {
     bowlHours: "Bowls gibt es von 11 bis 17 Uhr.", bubble: "Bis gleich!", instaEyebrow: "Neu auf Instagram", instaFollow: "Folg uns", algLink: "Allergene · Info", algTitle: "Allergene", algText: "Informationen zu Allergenen bekommst du jederzeit an der Theke. Die Buchstaben neben den Gerichten bedeuten:",
   },
   en: {
-    skip: "Skip to the menu",
+    skip: "Skip to the menu", menuOpen: "Open menu", menuClose: "Close menu",
     navBowls: "Bowls", navPasta: "Pasta", navOven: "Oven", navBrews: "Coffee", navVisit: "Visit",
     heroTitle: "THE BAKERY", heroLine: "fresh at Designer Outlet Salzburg", heroHint: "Scroll, she's already walking",
     bowlsEyebrow: "Daily 11am to 5pm",
@@ -45,7 +45,7 @@ const I18N = {
     bowlHours: "Bowls are served from 11am to 5pm.", bubble: "See you soon!", instaEyebrow: "New on Instagram", instaFollow: "Follow us", algLink: "Allergens · info", algTitle: "Allergens", algText: "Ask at the counter for allergen information any time. The letters next to the dishes mean:",
   },
   ar: {
-    skip: "انتقل إلى المنيو",
+    skip: "انتقل إلى المنيو", menuOpen: "افتح القائمة", menuClose: "سكّر القائمة",
     navBowls: "البولز", navPasta: "باستا", navOven: "الفرن", navBrews: "القهوة", navVisit: "زورونا",
     heroTitle: "THE BAKERY", heroLine: "طازة بالديزاينر أوتلت سالزبورغ", heroHint: "انزل لتحت، هي بلّشت تمشي",
     bowlsEyebrow: "يومياً من ١١ لـ ٥",

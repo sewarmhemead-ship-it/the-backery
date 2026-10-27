@@ -25,7 +25,11 @@
 
 <header class="nav">
   <a class="nav-mark" href="#top" aria-label="THE BAKERY"><span class="wordmark"></span></a>
-  <nav class="nav-links" aria-label="Hauptmenü">
+  <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav-links">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="l1" d="M3 8h18"/><path class="l2" d="M3 16h18"/></svg>
+    <span class="sr" data-i18n="menuOpen">Menü öffnen</span>
+  </button>
+  <nav class="nav-links" id="nav-links" aria-label="Hauptmenü">
     <a href="#bowls" data-i18n="navBowls">Bowls</a>
     <a href="#pasta" data-i18n="navPasta">Pasta</a>
     <a href="#ofen" data-i18n="navOven">Ofen</a>
