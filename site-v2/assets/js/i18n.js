@@ -22,7 +22,7 @@ const I18N = {
     nChoc: "Heiße Schokolade", nTea: "Tee", iced: "Alle Specials gibt es auch iced.", seasonEyebrow: "Nur im Herbst",
     visitTitle: "Komm vorbei", whereEyebrow: "Wo", whenEyebrow: "Wann", route: "Route planen",
     monFri: "Montag bis Freitag", sat: "Samstag", sun: "Sonntag", closed: "geschlossen",
-    bowlHours: "Bowls gibt es von 11 bis 17 Uhr.", bubble: "Bis gleich!",
+    bowlHours: "Bowls gibt es von 11 bis 17 Uhr.", bubble: "Bis gleich!", instaEyebrow: "Neu auf Instagram", instaFollow: "Folg uns", algLink: "Allergene · Info", algTitle: "Allergene", algText: "Informationen zu Allergenen bekommst du jederzeit an der Theke. Die Buchstaben neben den Gerichten bedeuten:",
   },
   en: {
     skip: "Skip to the menu",
@@ -42,7 +42,7 @@ const I18N = {
     nChoc: "Hot Chocolate", nTea: "Tea", iced: "All specials also come iced.", seasonEyebrow: "Autumn only",
     visitTitle: "Come by", whereEyebrow: "Where", whenEyebrow: "When", route: "Get directions",
     monFri: "Monday to Friday", sat: "Saturday", sun: "Sunday", closed: "closed",
-    bowlHours: "Bowls are served from 11am to 5pm.", bubble: "See you soon!",
+    bowlHours: "Bowls are served from 11am to 5pm.", bubble: "See you soon!", instaEyebrow: "New on Instagram", instaFollow: "Follow us", algLink: "Allergens · info", algTitle: "Allergens", algText: "Ask at the counter for allergen information any time. The letters next to the dishes mean:",
   },
   ar: {
     skip: "انتقل إلى المنيو",
@@ -62,6 +62,6 @@ const I18N = {
     nChoc: "شوكولا سخنة", nTea: "شاي", iced: "كل السبيشلز متوفرة بارد كمان.", seasonEyebrow: "بالخريف بس",
     visitTitle: "تفضّلوا", whereEyebrow: "وين", whenEyebrow: "إيمتى", route: "خطّط الطريق",
     monFri: "الإثنين للجمعة", sat: "السبت", sun: "الأحد", closed: "مسكّر",
-    bowlHours: "البولز من الساعة ١١ للساعة ٥.", bubble: "منشوفكم!",
+    bowlHours: "البولز من الساعة ١١ للساعة ٥.", bubble: "منشوفكم!", instaEyebrow: "جديدنا عالإنستغرام", instaFollow: "تابعونا", algLink: "مسبّبات الحساسية · معلومات", algTitle: "مسبّبات الحساسية", algText: "معلومات الحساسية موجودة دايماً عند الكاونتر. الحروف جنب الأطباق معناها:",
   },
 };

@@ -72,7 +72,7 @@
 
   let lastX = null, facing = 1, phase = 0, stride = 0, lastMove = 0;
 
-  function drawPuppet(t) {
+  function drawPuppet(ctx, t, phase, stride) {
     const s = Math.sin(phase);
     const aF = (-4 + 13 * s) * stride, aB = (4 - 13 * s) * stride;
     ctx.clearRect(0, 0, 438, 800);
@@ -127,8 +127,63 @@
     cv.style.transform = `scaleX(${facing})`;   // nur die Frau dreht sich um, die Sprechblase bleibt lesbar
     const fr = finish.getBoundingClientRect();
     walker.classList.toggle('talk', fr.top < vh * .8 && !moving);
-    drawPuppet(t);
+    drawPuppet(ctx, t, phase, stride);
   }
+
+  /* ---------- 6. Croissant-Mauszeiger ---------- */
+  // Nur mit echter Maus. Folgt weich, wird groß über allem, was man klicken kann.
+  if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const cur = document.getElementById('cursor');
+    root.classList.add('has-cursor');
+    let mx = innerWidth / 2, my = innerHeight / 2, cx = mx, cy = my;
+    addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; cur.classList.remove('hide'); });
+    document.addEventListener('pointerleave', () => cur.classList.add('hide'));
+    addEventListener('pointerdown', () => cur.classList.add('press'));
+    addEventListener('pointerup', () => cur.classList.remove('press'));
+    document.addEventListener('pointerover', e => cur.classList.toggle('big', !!e.target.closest('a, button, summary, .plate, .lang button')));
+    (function follow() {
+      const k = reduce ? 1 : .25;
+      cx += (mx - cx) * k; cy += (my - cy) * k;
+      cur.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%)`;
+      requestAnimationFrame(follow);
+    })();
+  }
+
+  /* ---------- 5. Ladebildschirm ---------- */
+  const loader = document.getElementById('loader');
+  const lctx = document.getElementById('loader-puppet').getContext('2d');
+  const fill = loader.querySelector('.fill'), pct = loader.querySelector('.loader-pct');
+  // الصور اللي loading=lazy ما بتتحمّل قبل ما توصلها، فما منستناها
+  const watch = [...document.images].filter(i => i.loading !== 'lazy').concat([BODY, LEG_F, LEG_B]);
+  let loaded = 0, shown = 0, loaderDone = false;
+  const t0 = performance.now();
+  const tick = () => { loaded++; };
+  watch.forEach(i => { if (i.complete) loaded++; else { i.addEventListener('load', tick, { once: true }); i.addEventListener('error', tick, { once: true }); } });
+  let fontsOk = false; document.fonts.ready.then(() => { fontsOk = true; });
+
+  function loaderFrame(now) {
+    if (loaderDone) return;
+    const t = now / 1000;
+    const target = Math.min(1, loaded / watch.length) * (fontsOk ? 1 : .9);
+    shown += (target - shown) * .08;
+    if (target === 1 && shown > .995) shown = 1;
+    fill.style.clipPath = root.dir === 'rtl' ? `inset(0 0 0 ${(1 - shown) * 100}%)` : `inset(0 ${(1 - shown) * 100}% 0 0)`;
+    pct.textContent = Math.round(shown * 100) + '%';
+    if (BODY.complete && LEG_F.complete && LEG_B.complete) {
+      const ph = (now - t0) / 1000 * Math.PI * 2 * 1.6;
+      lctx.canvas.style.transform = `translateY(${-Math.abs(Math.cos(ph)) * 8}px)`;
+      drawPuppet(lctx, t, ph, reduce ? 0 : 1);
+    }
+    if (shown === 1 && now - t0 > 1400) {
+      loaderDone = true;
+      loader.classList.add('done');
+      root.classList.remove('is-loading');
+      setTimeout(() => loader.remove(), 1000);
+      return;
+    }
+    requestAnimationFrame(loaderFrame);
+  }
+  requestAnimationFrame(loaderFrame);
 
   function frame(now) {
     const t = now / 1000, y = scrollY, vw = innerWidth, vh = innerHeight;

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" dir="ltr">
+<html lang="de" dir="ltr" class="is-loading">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,6 +13,13 @@
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
+
+<!-- Ladebildschirm: sie läuft auf der Stelle, die Wortmarke füllt sich -->
+<div class="loader" id="loader" aria-hidden="true">
+  <canvas id="loader-puppet" width="438" height="800"></canvas>
+  <div class="loader-mark"><span class="wordmark ghost"></span><span class="wordmark fill"></span></div>
+  <p class="loader-pct">0%</p>
+</div>
 
 <a class="skip" href="#karte" data-i18n="skip">Zur Karte springen</a>
 
@@ -60,26 +67,27 @@
       <p class="lead" data-i18n="bowlsLead">Jasminreis, Quinoa und Salat als Basis. Toppings und Greens wählst du selbst.</p>
 
       <ul class="menu">
-        <li><div class="row"><span class="name">Oriental Bowl</span><span class="dots"></span><span class="price">12,90</span></div>
+        <li data-dish="oriental-bowl"><div class="row"><span class="name">Oriental Bowl</span><span class="alg"></span><span class="dots"></span><span class="price">12,90</span></div>
             <p class="desc" data-i18n="dOriental">Kichererbsen, Edamame, knusprige Falafel</p></li>
-        <li><div class="row"><span class="name">The Tuna Bowl</span><span class="dots"></span><span class="price">14,90</span></div>
+        <li data-dish="the-tuna-bowl"><div class="row"><span class="name">The Tuna Bowl</span><span class="alg"></span><span class="dots"></span><span class="price">14,90</span></div>
             <p class="desc" data-i18n="dTuna">Thunfisch, Avocado Cream, Ingwer</p></li>
-        <li><div class="row"><span class="name">Caesar Chicken Bowl</span><span class="dots"></span><span class="price">13,90</span></div>
+        <li data-dish="caesar-chicken-bowl"><div class="row"><span class="name">Caesar Chicken Bowl</span><span class="alg"></span><span class="dots"></span><span class="price">13,90</span></div>
             <p class="desc" data-i18n="dCaesar">Hühnchen, Mais, Rote Bete</p></li>
-        <li><div class="row"><span class="name">Your Signature Bowl</span><span class="dots"></span><span class="price">14,90</span></div>
+        <li data-dish="your-signature-bowl"><div class="row"><span class="name">Your Signature Bowl</span><span class="alg"></span><span class="dots"></span><span class="price">14,90</span></div>
             <p class="desc" data-i18n="dSignature">Aus den Specials selbst zusammengestellt</p></li>
       </ul>
 
       <h3 class="sub-display" data-i18n="hotTitle">Hot Bowls</h3>
       <ul class="menu">
-        <li><div class="row"><span class="name" data-i18n="nLentil">Linseneintopf</span><span class="dots"></span><span class="price">11,40</span></div>
+        <li data-dish="linseneintopf"><div class="row"><span class="name" data-i18n="nLentil">Linseneintopf</span><span class="alg"></span><span class="dots"></span><span class="price">11,40</span></div>
             <p class="desc" data-i18n="dLentil">Orientalisch, Marokko-Style, Süßkartoffel · vegan</p></li>
-        <li><div class="row"><span class="name">Yellow Chicken Curry</span><span class="dots"></span><span class="price">12,90</span></div>
+        <li data-dish="yellow-chicken-curry"><div class="row"><span class="name">Yellow Chicken Curry</span><span class="alg"></span><span class="dots"></span><span class="price">12,90</span></div>
             <p class="desc" data-i18n="dCurry">Thai Style · scharf</p></li>
-        <li><div class="row"><span class="name">Butter Chicken</span><span class="dots"></span><span class="price">12,90</span></div>
+        <li data-dish="butter-chicken"><div class="row"><span class="name">Butter Chicken</span><span class="alg"></span><span class="dots"></span><span class="price">12,90</span></div>
             <p class="desc" data-i18n="dButter">India Style</p></li>
       </ul>
       <p class="fine" data-i18n="hotNote">Alle Hot Bowls mit Reis oder Quinoa.</p>
+      <p class="alg-note"><a href="#allergene" data-i18n="algLink">Allergene · Info</a></p>
     </div>
 
     <div class="bowls-visual" aria-hidden="true">
@@ -99,14 +107,15 @@
       <figure class="pp">
         <img class="plate spin" data-spin="0.07" src="assets/img/plate-lasagna.webp" alt="Lasagna Spinaci">
         <span class="sticker">11,90<small>€</small></span>
-        <figcaption><b>Lasagna Spinaci</b><span data-i18n="dLasagna">Spinat, Ricotta, Tomatensauce, Mozzarella</span></figcaption>
+        <figcaption data-dish="lasagna-spinaci"><b>Lasagna Spinaci<span class="alg"></span></b><span data-i18n="dLasagna">Spinat, Ricotta, Tomatensauce, Mozzarella</span></figcaption>
       </figure>
       <figure class="pp">
         <img class="plate spin" data-spin="-0.06" src="assets/img/plate-pasta.webp" alt="Pasta Bolognese">
         <span class="sticker">11,90<small>€</small></span>
-        <figcaption><b>Pasta Bolognese</b><span data-i18n="dBolo">Spaghetti, Rinderragù, Parmesan, Basilikum</span></figcaption>
+        <figcaption data-dish="pasta-bolognese"><b>Pasta Bolognese<span class="alg"></span></b><span data-i18n="dBolo">Spaghetti, Rinderragù, Parmesan, Basilikum</span></figcaption>
       </figure>
     </div>
+    <p class="alg-note center"><a href="#allergene" data-i18n="algLink">Allergene · Info</a></p>
   </section>
 
   <!-- OFEN -->
@@ -127,36 +136,56 @@
     </div>
     <div class="brews-cols">
       <ul class="menu">
-        <li><div class="row"><span class="name">Espresso</span><span class="dots"></span><span class="price">3,90</span></div></li>
-        <li><div class="row"><span class="name">Espresso Doppio</span><span class="dots"></span><span class="price">4,90</span></div></li>
-        <li><div class="row"><span class="name">Espresso Macchiato</span><span class="dots"></span><span class="price">4,40</span></div></li>
-        <li><div class="row"><span class="name">Verlängerter / Lungo</span><span class="dots"></span><span class="price">4,60 <em>L</em> 5,90</span></div></li>
-        <li><div class="row"><span class="name">Cappuccino</span><span class="dots"></span><span class="price">4,90 <em>L</em> 5,90</span></div></li>
-        <li><div class="row"><span class="name">Flat White</span><span class="dots"></span><span class="price">5,40</span></div></li>
-        <li><div class="row"><span class="name">Latte Macchiato</span><span class="dots"></span><span class="price">5,80</span></div></li>
-        <li><div class="row"><span class="name" data-i18n="nChoc">Heiße Schokolade</span><span class="dots"></span><span class="price">5,80</span></div></li>
-        <li><div class="row"><span class="name" data-i18n="nTea">Tee</span><span class="dots"></span><span class="price">4,90</span></div></li>
+        <li data-dish="espresso"><div class="row"><span class="name">Espresso</span><span class="alg"></span><span class="dots"></span><span class="price">3,90</span></div></li>
+        <li data-dish="espresso-doppio"><div class="row"><span class="name">Espresso Doppio</span><span class="alg"></span><span class="dots"></span><span class="price">4,90</span></div></li>
+        <li data-dish="espresso-macchiato"><div class="row"><span class="name">Espresso Macchiato</span><span class="alg"></span><span class="dots"></span><span class="price">4,40</span></div></li>
+        <li data-dish="verlaengerter-lungo"><div class="row"><span class="name">Verlängerter / Lungo</span><span class="alg"></span><span class="dots"></span><span class="price">4,60 <em>L</em> 5,90</span></div></li>
+        <li data-dish="cappuccino"><div class="row"><span class="name">Cappuccino</span><span class="alg"></span><span class="dots"></span><span class="price">4,90 <em>L</em> 5,90</span></div></li>
+        <li data-dish="flat-white"><div class="row"><span class="name">Flat White</span><span class="alg"></span><span class="dots"></span><span class="price">5,40</span></div></li>
+        <li data-dish="latte-macchiato"><div class="row"><span class="name">Latte Macchiato</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
+        <li data-dish="heisse-schokolade"><div class="row"><span class="name" data-i18n="nChoc">Heiße Schokolade</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
+        <li data-dish="tee"><div class="row"><span class="name" data-i18n="nTea">Tee</span><span class="alg"></span><span class="dots"></span><span class="price">4,90</span></div></li>
       </ul>
       <div>
         <h3 class="sub-display">Specials</h3>
         <ul class="menu">
-          <li><div class="row"><span class="name">Chai Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
-          <li><div class="row"><span class="name">Spicy Pumpkin Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
-          <li><div class="row"><span class="name">Marshmallow Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
-          <li><div class="row"><span class="name">Cinnamon Roll Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li data-dish="chai-latte"><div class="row"><span class="name">Chai Latte</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li data-dish="spicy-pumpkin-latte"><div class="row"><span class="name">Spicy Pumpkin Latte</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li data-dish="marshmallow-latte"><div class="row"><span class="name">Marshmallow Latte</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li data-dish="cinnamon-roll-latte"><div class="row"><span class="name">Cinnamon Roll Latte</span><span class="alg"></span><span class="dots"></span><span class="price">5,80</span></div></li>
         </ul>
         <h3 class="sub-display">All I need is Matcha</h3>
         <ul class="menu">
-          <li><div class="row"><span class="name">Matcha Latte</span><span class="dots"></span><span class="price">5,90</span></div></li>
-          <li><div class="row"><span class="name">Strawberry Matcha Latte</span><span class="dots"></span><span class="price">6,40</span></div></li>
+          <li data-dish="matcha-latte"><div class="row"><span class="name">Matcha Latte</span><span class="alg"></span><span class="dots"></span><span class="price">5,90</span></div></li>
+          <li data-dish="strawberry-matcha-latte"><div class="row"><span class="name">Strawberry Matcha Latte</span><span class="alg"></span><span class="dots"></span><span class="price">6,40</span></div></li>
         </ul>
         <p class="fine" data-i18n="iced">Alle Specials gibt es auch iced.</p>
+      <p class="alg-note"><a href="#allergene" data-i18n="algLink">Allergene · Info</a></p>
       </div>
     </div>
     <figure class="season">
       <img src="assets/img/pumpkin-latte.webp" alt="Spicy Pumpkin Latte" data-float="-0.12">
       <figcaption><span class="eyebrow" data-i18n="seasonEyebrow">Nur im Herbst</span><b>Spicy Pumpkin Latte</b><span class="price">5,80</span></figcaption>
     </figure>
+  </section>
+
+  <!-- INSTAGRAM -->
+  <section class="insta" id="instagram" data-ground="blush">
+    <div class="insta-head">
+      <div>
+        <p class="eyebrow" data-i18n="instaEyebrow">Neu auf Instagram</p>
+        <h2 class="display insta-title" dir="ltr">@the.bakery<br>__salzburg</h2>
+      </div>
+      <a class="btn" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener" data-i18n="instaFollow">Folg uns</a>
+    </div>
+    <div class="insta-grid" id="insta-grid">
+      <a class="tile" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/plate-bowl.webp" alt="" loading="lazy"></a>
+      <a class="tile sky" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/pumpkin-latte.webp" alt="" loading="lazy"></a>
+      <a class="tile" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/plate-lasagna.webp" alt="" loading="lazy"></a>
+      <a class="tile sky" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/logo.webp" alt="" loading="lazy"></a>
+      <a class="tile" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/plate-pasta.webp" alt="" loading="lazy"></a>
+      <a class="tile gold" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener"><img src="assets/img/corn.webp" alt="" loading="lazy"></a>
+    </div>
   </section>
 
   <!-- BESUCH -->
@@ -179,6 +208,11 @@
         <p class="fine" data-i18n="bowlHours">Bowls gibt es von 11 bis 17 Uhr.</p>
       </div>
     </div>
+    <details class="allergene" id="allergene">
+      <summary data-i18n="algTitle">Allergene</summary>
+      <p class="body" data-i18n="algText">Informationen zu Allergenen bekommst du jederzeit an der Theke.</p>
+      <ul class="alg-legend" id="alg-legend"></ul>
+    </details>
     <div class="finish" aria-hidden="true"></div>
   </section>
 </main>
@@ -195,7 +229,25 @@
   <span class="bubble" id="bubble" data-i18n="bubble">Bis gleich!</span>
 </div>
 
+
+<!-- Croissant-Mauszeiger (nur Desktop mit Maus) -->
+<div class="cursor" id="cursor" aria-hidden="true">
+  <svg viewBox="0 0 120 80">
+    <g stroke="#1a1010" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M8 52 C6 38 14 26 24 24 C26 34 26 44 22 56 C16 58 10 57 8 52 Z" fill="#d4893c"/>
+      <path d="M112 52 C114 38 106 26 96 24 C94 34 94 44 98 56 C104 58 110 57 112 52 Z" fill="#d4893c"/>
+      <path d="M24 24 C30 14 40 10 46 12 C48 26 46 44 40 60 C32 62 26 60 22 56 C26 44 26 34 24 24 Z" fill="#e39a45"/>
+      <path d="M96 24 C90 14 80 10 74 12 C72 26 74 44 80 60 C88 62 94 60 98 56 C94 44 94 34 96 24 Z" fill="#e39a45"/>
+      <path d="M46 12 C54 6 66 6 74 12 C76 28 76 46 80 60 C68 66 52 66 40 60 C44 46 44 28 46 12 Z" fill="#efb05a"/>
+    </g>
+    <path d="M52 20 C56 18 62 18 66 20" stroke="#fff3d6" stroke-width="3" fill="none" stroke-linecap="round" opacity=".7"/>
+  </svg>
+</div>
+
 <script src="assets/js/i18n.js"></script>
+<script src="assets/js/allergen-data.js"></script>
 <script src="assets/js/main.js"></script>
+<script src="assets/js/instagram.js"></script>
+<script src="assets/js/allergens.js"></script>
 </body>
 </html>
