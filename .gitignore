@@ -1,0 +1,7 @@
+# Nur die Websites gehören ins Repo. Alles andere (Videos, Rohbilder,
+# Marken-PDFs, Werkzeuge) bleibt lokal.
+/*
+!/.gitignore
+!/README.md
+!/site/
+!/site-v2/

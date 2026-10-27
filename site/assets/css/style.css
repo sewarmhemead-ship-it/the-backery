@@ -1,0 +1,589 @@
+/* ============================================================
+   the.bakery
+   ألوان وخطوط مسحوبة من ملفات شاشات المحل الرسمية
+   الموقع مبني للموبايل أولاً، لأنه بينفتح من QR على الطاولة
+   ============================================================ */
+
+:root{
+  --ink:      #000045;
+  --blush:    #F1C2CC;
+  --sky:      #BFE4ED;
+  --burgundy: #730E23;
+  --gold:     #C9762B;
+  --cream:    #F4EAD7;
+  --paper:    #FFFFFF;
+
+  --bg: var(--ink);
+  --fg: var(--sky);
+
+  --display:"Anton","Cairo",system-ui,sans-serif;
+  --body:"Archivo","Cairo",system-ui,sans-serif;
+
+  --bar-h:56px;
+  --tabs-h:52px;
+  --pad:20px;
+
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+
+html[lang="ar"]{ --display:"Cairo","Anton",system-ui,sans-serif; --body:"Cairo",system-ui,sans-serif; }
+
+/* Anton إله وزن واحد، أما Cairo فلازم نطلب الأسود يدوياً
+   حتى العربي يطلع بنفس ثقل الألماني */
+html[lang="ar"] .hero__head,
+html[lang="ar"] .course__head,
+html[lang="ar"] .drops__head,
+html[lang="ar"] .visit__head,
+html[lang="ar"] .dish__name,
+html[lang="ar"] .drop__name,
+html[lang="ar"] .foot__tag,
+html[lang="ar"] .marquee__track{ font-weight:900; }
+
+html[lang="ar"] .kicker,
+html[lang="ar"] .tab,
+html[lang="ar"] .hours__head,
+html[lang="ar"] .hero__tag,
+html[lang="ar"] .boot__meta,
+html[lang="ar"] .cta-jump,
+html[lang="ar"] .cta-map,
+html[lang="ar"] .bar__mark,
+html[lang="ar"] .dish__price,
+html[lang="ar"] .drop__price,
+html[lang="ar"] .hours__row dd{ font-weight:700; }
+
+/* العربي ما بيحب التباعد الحرفي الواسع */
+html[lang="ar"] .kicker,
+html[lang="ar"] .tab,
+html[lang="ar"] .cta-jump,
+html[lang="ar"] .cta-map,
+html[lang="ar"] .hours__head{ letter-spacing:.04em; }
+
+/* مهم: الأرقام والعناوين اللاتينية بتنعكس جوّا السياق العربي.
+   بدون هاي، 09:00-19:00 بتصير 19:00-09:00 والزبون بيقرأ الدوام غلط،
+   والعنوان بيصير Wals-Himmelreich 5073. منجبرهم يضلوا من اليسار لليمين
+   ومنحاذيهم لليمين حتى يضلوا مع باقي التصميم. */
+html[lang="ar"] .hours__row dd,
+html[lang="ar"] .dish__price,
+html[lang="ar"] .drop__price{ direction:ltr; }
+
+html[lang="ar"] .visit__addr{ direction:ltr; text-align:right; }
+
+@media (min-width:768px){ :root{ --pad:44px; --bar-h:64px; --tabs-h:58px; } }
+@media (min-width:1280px){ :root{ --pad:72px; } }
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+html{ -webkit-text-size-adjust:100%; }
+
+body{
+  margin:0;
+  font-family:var(--body);
+  font-size:16px;
+  background:var(--ink);
+  color:var(--sky);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+body.is-booting{ overflow:hidden; height:100dvh; }
+
+img{ max-width:100%; display:block; }
+a{ color:inherit; }
+svg{ fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+:focus-visible{ outline:3px solid var(--gold); outline-offset:3px; }
+
+
+/* ---------- الغرف الملوّنة ----------
+   كل قسم عالم لونه الخاص، نفس فكرة شاشات المحل */
+.room{ position:relative; overflow:hidden; }
+[data-room="ink"]     { background:var(--ink);      color:var(--sky);   --accent:var(--blush); --line:rgba(191,228,237,.26); }
+[data-room="sky"]     { background:var(--sky);      color:var(--ink);   --accent:var(--burgundy); --line:rgba(0,0,69,.2); }
+[data-room="blush"]   { background:var(--blush);    color:var(--ink);   --accent:var(--burgundy); --line:rgba(0,0,69,.2); }
+[data-room="gold"]    { background:var(--gold);     color:var(--ink);   --accent:var(--ink); --line:rgba(0,0,69,.28); }
+[data-room="cream"]   { background:var(--cream);    color:var(--ink);   --accent:var(--burgundy); --line:rgba(0,0,69,.2); }
+[data-room="burgundy"]{ background:var(--burgundy); color:var(--blush); --accent:var(--blush); --line:rgba(241,194,204,.28); }
+
+
+/* ============================================================
+   شاشة التحميل
+   ============================================================ */
+
+.boot{
+  position:fixed; inset:0; z-index:1000;
+  background:var(--blush);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:20px;
+}
+.boot.is-gone{ pointer-events:none; }
+
+/* البنت والطريق تحت رجليها مباشرة */
+.boot__walk{ position:relative; width:min(180px,42vw); }
+
+.boot__girl{
+  width:100%; height:auto;
+  transform-origin:50% 100%;
+  animation:step .78s ease-in-out infinite;
+}
+@keyframes step{
+  0%,100%{ transform:translateY(0)    rotate(-2.2deg); }
+  50%    { transform:translateY(-12px) rotate(2.2deg); }
+}
+
+.boot__road{
+  position:absolute; inset-block-end:-10px; inset-inline:-42%;
+  height:2px;
+  background:repeating-linear-gradient(90deg,var(--ink) 0 20px,transparent 20px 36px);
+  background-size:36px 2px;
+  opacity:.3;
+  animation:road .42s linear infinite;
+}
+@keyframes road{ to{ background-position:-36px 0; } }
+
+.boot__meta{
+  display:flex; align-items:baseline; gap:12px;
+  margin-top:14px;
+  font-family:var(--display); color:var(--burgundy);
+  letter-spacing:.16em; text-transform:uppercase;
+  font-size:clamp(11px,3vw,14px);
+}
+.boot__num i{ font-style:normal; font-variant-numeric:tabular-nums; }
+
+.boot__bar{
+  width:min(200px,46vw); height:3px;
+  background:rgba(115,14,35,.2);
+  overflow:hidden;
+}
+.boot__bar i{ display:block; height:100%; width:0%; background:var(--burgundy); }
+
+/* ألواح الانسحاب */
+.boot__panels{ position:absolute; inset:0; display:flex; pointer-events:none; }
+.boot__panels i{ flex:1; background:var(--ink); transform:translateY(101%); }
+
+
+/* ============================================================
+   الشريط العلوي
+   ============================================================ */
+
+.bar{
+  position:fixed; inset-block-start:0; inset-inline:0; z-index:90;
+  height:var(--bar-h);
+  display:flex; align-items:center; gap:14px;
+  padding-inline:var(--pad);
+  background:var(--ink); color:var(--sky);
+  transition:background .4s var(--ease), color .4s var(--ease);
+}
+.bar__mark{
+  display:flex; align-items:center; gap:9px;
+  min-height:44px;                 /* الحد الأدنى للمس */
+  font-family:var(--display); font-size:17px; letter-spacing:.02em;
+  text-decoration:none; margin-inline-end:auto;
+}
+.bar__mark img{ width:30px; height:30px; object-fit:contain; }
+
+.lang{ display:flex; }
+.lang button{
+  font:inherit; font-size:12px; font-weight:700; letter-spacing:.06em;
+  min-width:44px; min-height:44px; padding:0 6px; cursor:pointer;
+  color:inherit; background:transparent;
+  border:1.5px solid currentColor; border-inline-width:.75px;
+  opacity:.5; transition:opacity .2s, background .2s, color .2s;
+}
+.lang button:first-child{ border-inline-start-width:1.5px; }
+.lang button:last-child{ border-inline-end-width:1.5px; }
+/* الزر النشط: مربّع مملوء والنص بلون خلفية الشريط.
+   ملاحظة: ما منستعمل currentColor للخلفية لأن تغيير color بيلغيها. */
+.lang button[aria-current="true"]{
+  opacity:1;
+  background:var(--bar-fg,#BFE4ED);
+  color:var(--bar-bg,#000045);
+  border-color:var(--bar-fg,#BFE4ED);
+}
+
+
+/* ============================================================
+   الهيرو
+   ============================================================ */
+
+/* الحشوة السفلية الكبيرة بتزح المحتوى لفوق، فما بيضل فراغ ميت تحت الشريط */
+.hero{
+  min-height:100dvh;
+  padding:calc(var(--bar-h) + 20px) var(--pad) clamp(96px,26vh,210px);
+  display:flex; align-items:center;
+}
+.hero__inner{ position:relative; z-index:2; width:100%; }
+
+.hero__tag{
+  display:block;
+  font-family:var(--display);
+  font-size:clamp(11px,3vw,15px);
+  letter-spacing:.28em; text-transform:lowercase;
+  color:var(--blush);
+}
+.hero__tag b{ color:var(--gold); }
+
+.hero__head{
+  margin:.28em 0 0;
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(52px,15.5vw,180px);
+  line-height:.86; letter-spacing:-.02em; text-transform:uppercase;
+}
+.hero__head .line{ display:block; overflow:hidden; padding-block-end:.06em; }
+.hero__head .line > span{ display:block; }
+html[lang="ar"] .hero__head{ line-height:1.08; font-size:clamp(42px,12vw,140px); }
+
+.hero__sub{
+  max-width:30ch; margin:22px 0 0;
+  font-size:clamp(15px,4vw,19px); line-height:1.5; font-weight:500;
+  color:var(--blush);
+}
+
+.cta-jump{
+  display:inline-flex; align-items:center; gap:12px;
+  margin-top:30px; padding:16px 26px; min-height:52px;
+  font-family:var(--display); font-size:15px;
+  letter-spacing:.1em; text-transform:uppercase; text-decoration:none;
+  color:var(--ink); background:var(--sky);
+  border:2px solid var(--sky);
+  transition:background .15s, color .15s, transform .15s;
+}
+.cta-jump svg{ width:18px; height:18px; }
+.cta-jump:active{ transform:scale(.97); }
+@media (hover:hover){
+  .cta-jump:hover{ background:transparent; color:var(--sky); }
+}
+
+/* البول والمكوّنات */
+.hero__bowl{
+  position:absolute; z-index:1;
+  inset-block-end:-6%; inset-inline-end:-14%;
+  width:min(78vw,520px);
+  opacity:.95;
+}
+.fly{ position:absolute; z-index:1; pointer-events:none; filter:drop-shadow(0 12px 20px rgba(0,0,0,.3)); }
+.fly--a{ width:clamp(46px,13vw,110px); inset-block-start:11%; inset-inline-end:10%; }
+.fly--b{ width:clamp(56px,16vw,130px); inset-block-start:19%; inset-inline-start:5%; }
+.fly--c{ width:clamp(44px,12vw,105px); inset-block-end:36%;   inset-inline-end:24%; }
+.fly--d{ width:clamp(50px,14vw,118px); inset-block-end:14%;   inset-inline-start:6%; }
+
+@media (max-width:520px){
+  .fly--b,.fly--c{ opacity:.55; }
+  .hero__bowl{ inset-block-end:-3%; inset-inline-end:-22%; opacity:.8; }
+}
+
+/* على الشاشات العريضة العنوان بياخد النص الشمالي كله،
+   فلازم المكوّنات تبعد عنه وإلا بتطلع كأنها غلطة */
+@media (min-width:900px){
+  .fly--a{ inset-block-start:9%;  inset-inline-end:13%; inset-inline-start:auto; }
+  .fly--b{ inset-block-start:auto; inset-block-end:38%; inset-inline-end:34%; inset-inline-start:auto; }
+  .fly--c{ inset-block-start:27%; inset-block-end:auto; inset-inline-end:25%; }
+  .fly--d{ inset-block-end:9%;   inset-inline-start:31%; }
+}
+
+
+/* ============================================================
+   الشريط المتحرك
+   ============================================================ */
+
+.marquee{
+  background:var(--gold); color:var(--ink);
+  border-block:2px solid var(--ink);
+  overflow:hidden; padding-block:11px;
+}
+.marquee__track{
+  display:flex; gap:.5em; width:max-content;
+  font-family:var(--display);
+  font-size:clamp(19px,5.5vw,34px);
+  letter-spacing:.05em; text-transform:lowercase;
+  white-space:nowrap;
+}
+.marquee__track b{ color:var(--burgundy); }
+
+
+/* ============================================================
+   تبويبات الأقسام، لاصقة تحت الشريط
+   ============================================================ */
+
+/* الشريط بياخد لون الغرفة اللي تحته، فبينصهر مع الصفحة
+   والخط تحته هو اللي بيفصل */
+.tabs{
+  position:sticky; inset-block-start:var(--bar-h); z-index:80;
+  background:var(--ink); color:var(--sky);
+  border-block-end:2px solid currentColor;
+}
+.tabs__scroll{
+  display:flex; gap:0;
+  overflow-x:auto; overscroll-behavior-x:contain;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  padding-inline:var(--pad);
+}
+.tabs__scroll::-webkit-scrollbar{ display:none; }
+
+.tab{
+  flex:0 0 auto;
+  min-height:var(--tabs-h); padding:0 18px;
+  display:inline-flex; align-items:center;
+  font-family:var(--display); font-size:14px;
+  letter-spacing:.09em; text-transform:uppercase;
+  color:inherit; background:transparent;
+  border:0; border-block-end:3px solid transparent;
+  cursor:pointer; opacity:.8;   /* أقل من هيك بترسب بمعيار AA فوق الذهبي */
+  transition:opacity .2s, border-color .2s;
+  white-space:nowrap;
+}
+.tab.is-on{ opacity:1; border-block-end-color:currentColor; }
+
+
+/* ============================================================
+   عناصر مشتركة
+   ============================================================ */
+
+.kicker{
+  display:block;
+  font-family:var(--display);
+  font-size:clamp(11px,2.9vw,14px);
+  letter-spacing:.3em; text-transform:uppercase;
+  color:var(--accent);
+}
+
+.room > .kicker,
+.room > h2,
+.room > p{ position:relative; z-index:2; }
+
+
+/* ============================================================
+   الجديد عنا
+   ============================================================ */
+
+.drops{ padding:clamp(52px,11vw,110px) 0 clamp(52px,11vw,110px); }
+.drops > .kicker,
+.drops__head,
+.drops__note{ padding-inline:var(--pad); }
+
+.drops__head{
+  margin:.16em 0 0;
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(38px,11vw,86px);
+  line-height:.94; text-transform:uppercase; letter-spacing:-.01em;
+}
+html[lang="ar"] .drops__head{ line-height:1.16; }
+
+.drops__note{ margin:14px 0 0; font-size:15px; line-height:1.5; opacity:.85; max-width:46ch; }
+
+.rail{
+  display:flex; gap:14px;
+  margin-top:30px; padding-inline:var(--pad);
+  overflow-x:auto; overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.rail::-webkit-scrollbar{ display:none; }
+
+.drop{
+  flex:0 0 auto; scroll-snap-align:start;
+  width:min(74vw,300px);
+  padding:20px; min-height:190px;
+  display:flex; flex-direction:column;
+  background:var(--blush); color:var(--ink);
+  border:2px solid var(--ink);
+  text-decoration:none;
+}
+.drop__img{ width:74px; height:74px; object-fit:contain; margin-bottom:auto; }
+.drop__name{
+  margin:16px 0 0; font-family:var(--display); font-weight:400;
+  font-size:clamp(20px,5.4vw,26px); line-height:1.05; text-transform:uppercase;
+}
+html[lang="ar"] .drop__name{ line-height:1.3; }
+.drop__price{ margin:8px 0 0; font-family:var(--display); font-size:19px; }
+.drop__price--soon{ font-family:var(--body); font-weight:600; font-size:12px; letter-spacing:.05em; text-transform:uppercase; opacity:.8; }
+
+
+/* ============================================================
+   غرف المنيو
+   ============================================================ */
+
+.course{ padding:clamp(56px,12vw,120px) var(--pad); scroll-margin-block-start:calc(var(--bar-h) + var(--tabs-h)); }
+
+.course__head{
+  margin:.16em 0 0;
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(40px,12vw,92px);
+  line-height:.92; text-transform:uppercase; letter-spacing:-.015em;
+  text-decoration:underline; text-underline-offset:.09em; text-decoration-thickness:.05em;
+}
+html[lang="ar"] .course__head{ line-height:1.16; }
+
+.course__note{ margin:16px 0 0; font-size:15px; line-height:1.55; max-width:48ch; opacity:.82; }
+
+.dishes{ list-style:none; margin:clamp(30px,7vw,52px) 0 0; padding:0; }
+
+.dish{
+  position:relative;
+  display:grid; grid-template-columns:1fr auto; gap:4px 16px;
+  padding:20px 14px; margin-inline:-14px;
+  border-block-start:2px solid currentColor;
+  transition:background .12s linear, color .12s linear;
+}
+.dish:last-child{ border-block-end:2px solid currentColor; }
+
+/* الغمر بالحبر عند اللمس أو المرور، نفس روح الشاشات */
+@media (hover:hover){
+  .dish:hover{ background:var(--ink); color:var(--sky); }
+  [data-room="ink"] .dish:hover{ background:var(--sky); color:var(--ink); }
+}
+.dish:active{ background:var(--ink); color:var(--sky); }
+[data-room="ink"] .dish:active{ background:var(--sky); color:var(--ink); }
+
+.dish__name{
+  grid-column:1; margin:0;
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(20px,5.6vw,32px); line-height:1.04; text-transform:uppercase;
+}
+html[lang="ar"] .dish__name{ line-height:1.32; }
+
+.dish__price{
+  grid-column:2; grid-row:1 / span 3; align-self:start;
+  font-family:var(--display); font-size:clamp(19px,5vw,28px);
+  white-space:nowrap; font-variant-numeric:tabular-nums;
+}
+.dish__price--soon{
+  font-family:var(--body); font-weight:600; font-size:11px;
+  letter-spacing:.06em; text-transform:uppercase; opacity:.8;
+  white-space:normal; max-width:8ch; text-align:end;
+}
+
+.dish__desc{ grid-column:1; margin:6px 0 0; font-size:14.5px; line-height:1.5; opacity:.82; max-width:52ch; }
+
+.dish__tags{ grid-column:1; display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.tag{
+  font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  padding:5px 9px; border:1.5px solid currentColor;
+}
+.tag--star{ background:var(--burgundy); color:var(--blush); border-color:var(--burgundy); }
+.tag--new{ background:var(--ink); color:var(--sky); border-color:var(--ink); }
+[data-room="ink"] .tag--new{ background:var(--sky); color:var(--ink); border-color:var(--sky); }
+.dish:hover .tag,.dish:active .tag{ border-color:currentColor; }
+
+/* صورة الصنف بتطير من الجنب، ديسكتوب بس */
+.dish__pop{
+  position:absolute; inset-block-start:50%; inset-inline-end:120px;
+  width:110px; pointer-events:none;
+  opacity:0; transform:translateY(-50%) scale(.7) rotate(-14deg);
+  transition:opacity .28s var(--ease), transform .28s var(--ease);
+}
+@media (hover:hover) and (min-width:900px){
+  .dish:hover .dish__pop{ opacity:1; transform:translateY(-50%) scale(1) rotate(6deg); }
+}
+@media (max-width:899px){ .dish__pop{ display:none; } }
+
+.course__grains{
+  position:absolute; inset-block-start:6%; inset-inline-end:-10%;
+  width:min(60%,540px); opacity:.35; pointer-events:none; z-index:1;
+}
+
+
+/* ============================================================
+   الزيارة والدوام
+   ============================================================ */
+
+.visit{ padding:clamp(56px,12vw,120px) var(--pad); scroll-margin-block-start:calc(var(--bar-h) + var(--tabs-h)); }
+
+.visit__head{
+  margin:.16em 0 34px;
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(36px,11vw,84px);
+  line-height:.94; text-transform:uppercase; letter-spacing:-.015em;
+}
+html[lang="ar"] .visit__head{ line-height:1.16; }
+
+.visit__grid{ position:relative; z-index:2; display:grid; gap:44px; }
+@media (min-width:860px){ .visit__grid{ grid-template-columns:1fr 1fr; gap:70px; max-width:1100px; } }
+
+.visit__addr{ font-style:normal; font-size:clamp(18px,5vw,24px); line-height:1.45; font-weight:600; }
+
+.cta-map{
+  display:inline-flex; align-items:center; gap:10px;
+  margin-top:22px; padding:15px 24px; min-height:52px;
+  font-family:var(--display); font-size:14px;
+  letter-spacing:.1em; text-transform:uppercase; text-decoration:none;
+  color:var(--ink); background:var(--sky); border:2px solid var(--sky);
+  transition:background .15s, color .15s, transform .15s;
+}
+.cta-map svg{ width:18px; height:18px; }
+.cta-map:active{ transform:scale(.97); }
+@media (hover:hover){ .cta-map:hover{ background:transparent; color:var(--sky); } }
+
+.hours__head{
+  margin:0 0 14px; font-family:var(--display); font-weight:400;
+  font-size:clamp(17px,4.6vw,23px); letter-spacing:.07em; text-transform:uppercase;
+  color:var(--accent);
+}
+.hours{ margin:0; }
+.hours__row{
+  display:flex; justify-content:space-between; align-items:baseline; gap:16px;
+  padding:13px 0; border-block-start:1.5px solid var(--line);
+}
+.hours__row:last-child{ border-block-end:1.5px solid var(--line); }
+.hours__row dt{ font-weight:600; font-size:15px; }
+.hours__row dd{ margin:0; font-family:var(--display); font-size:16px; font-variant-numeric:tabular-nums; }
+.hours__row.is-today{ color:var(--blush); }
+.hours__row.is-today dt::after{
+  content:""; display:inline-block; width:7px; height:7px; border-radius:50%;
+  background:var(--gold); margin-inline-start:8px;
+}
+.hours__note{ margin:18px 0 0; font-size:13.5px; line-height:1.5; opacity:.7; }
+
+.visit__pola{
+  display:none;
+  position:absolute; inset-block-end:-60px; inset-inline-end:-30px;
+  width:300px; padding:13px 13px 48px;
+  background:var(--paper); transform:rotate(6deg);
+  box-shadow:0 24px 50px rgba(0,0,0,.35);
+}
+@media (min-width:1100px){ .visit__pola{ display:block; } }
+
+
+/* ============================================================
+   التذييل
+   ============================================================ */
+
+.foot{
+  padding:clamp(50px,11vw,90px) var(--pad);
+  display:flex; flex-direction:column; align-items:center; gap:22px; text-align:center;
+}
+.foot__girl{ width:66px; height:auto; }
+.foot__tag{
+  margin:0; font-family:var(--display);
+  font-size:clamp(15px,4.4vw,21px); letter-spacing:.2em; color:var(--burgundy);
+}
+.foot__tag b{ color:var(--gold); }
+
+.cta-insta{
+  display:inline-flex; align-items:center; gap:10px;
+  padding:14px 22px; min-height:52px; text-decoration:none;
+  font-weight:700; font-size:14px;
+  color:var(--blush); background:var(--ink); border:2px solid var(--ink);
+  transition:background .15s, color .15s, transform .15s;
+}
+.cta-insta svg{ width:18px; height:18px; }
+.cta-insta:active{ transform:scale(.97); }
+@media (hover:hover){ .cta-insta:hover{ background:transparent; color:var(--ink); } }
+
+.foot__legal{
+  display:flex; flex-wrap:wrap; gap:4px 12px; justify-content:center;
+  margin:0; font-size:12px; opacity:.6;
+}
+.foot__legal i{ font-style:normal; }
+
+
+/* ============================================================
+   احترام تعطيل الحركة
+   ============================================================ */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}

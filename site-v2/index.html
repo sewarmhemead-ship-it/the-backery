@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE BAKERY — Bakes ^ Bowls ^ Brews · Designer Outlet Salzburg</title>
+<meta name="description" content="Bakes, Bowls und Brews im Designer Outlet Salzburg. Frische Poke Bowls, Pasta, Kaffee und Gebäck.">
+<meta name="theme-color" content="#C0E4ED">
+<link rel="icon" href="assets/img/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Changa:wght@500;600;700;800&family=Open+Sans:ital,wdth,wght@0,75..100,400..800;1,75..100,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<a class="skip" href="#karte" data-i18n="skip">Zur Karte springen</a>
+
+<header class="nav">
+  <a class="nav-mark" href="#top" aria-label="THE BAKERY"><span class="wordmark"></span></a>
+  <nav class="nav-links" aria-label="Hauptmenü">
+    <a href="#bowls" data-i18n="navBowls">Bowls</a>
+    <a href="#pasta" data-i18n="navPasta">Pasta</a>
+    <a href="#ofen" data-i18n="navOven">Ofen</a>
+    <a href="#brews" data-i18n="navBrews">Kaffee</a>
+    <a href="#besuch" data-i18n="navVisit">Besuch</a>
+  </nav>
+  <div class="lang" role="group" aria-label="Sprache">
+    <button type="button" data-lang="de">DE</button>
+    <button type="button" data-lang="en">EN</button>
+    <button type="button" data-lang="ar">ع</button>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO: das Plakat, nur lebendig -->
+  <section class="hero" data-ground="sky">
+    <h1 class="hero-mark"><span class="wordmark" aria-hidden="true"></span><span class="sr" data-i18n="heroTitle">THE BAKERY</span></h1>
+    <p class="hero-line" data-i18n="heroLine">frisch im Designer Outlet Salzburg</p>
+    <div class="hero-stage" aria-hidden="true"></div>
+    <p class="caret-line"><span>Bakes</span><i>^</i><span>Bowls</span><i>^</i><span>Brews</span></p>
+    <p class="hero-hint" data-i18n="heroHint">Scroll, sie läuft schon vor</p>
+  </section>
+
+  <div class="strip" data-ground="burgundy" aria-hidden="true">
+    <div class="strip-track">
+      <span>Eat fresh</span><i>^</i><span>Feel good</span><i>^</i><span>Hello welcome</span><i>^</i>
+      <span>Eat fresh</span><i>^</i><span>Feel good</span><i>^</i><span>Hello welcome</span><i>^</i>
+      <span>Eat fresh</span><i>^</i><span>Feel good</span><i>^</i><span>Hello welcome</span><i>^</i>
+    </div>
+  </div>
+
+  <!-- BOWLS -->
+  <section class="bowls" id="bowls" data-ground="blush">
+    <div class="karte-anchor" id="karte"></div>
+    <div class="bowls-copy">
+      <p class="eyebrow" data-i18n="bowlsEyebrow">Täglich 11 bis 17 Uhr</p>
+      <h2 class="display">Poke<br>Bowls</h2>
+      <p class="lead" data-i18n="bowlsLead">Jasminreis, Quinoa und Salat als Basis. Toppings und Greens wählst du selbst.</p>
+
+      <ul class="menu">
+        <li><div class="row"><span class="name">Oriental Bowl</span><span class="dots"></span><span class="price">12,90</span></div>
+            <p class="desc" data-i18n="dOriental">Kichererbsen, Edamame, knusprige Falafel</p></li>
+        <li><div class="row"><span class="name">The Tuna Bowl</span><span class="dots"></span><span class="price">14,90</span></div>
+            <p class="desc" data-i18n="dTuna">Thunfisch, Avocado Cream, Ingwer</p></li>
+        <li><div class="row"><span class="name">Caesar Chicken Bowl</span><span class="dots"></span><span class="price">13,90</span></div>
+            <p class="desc" data-i18n="dCaesar">Hühnchen, Mais, Rote Bete</p></li>
+        <li><div class="row"><span class="name">Your Signature Bowl</span><span class="dots"></span><span class="price">14,90</span></div>
+            <p class="desc" data-i18n="dSignature">Aus den Specials selbst zusammengestellt</p></li>
+      </ul>
+
+      <h3 class="sub-display" data-i18n="hotTitle">Hot Bowls</h3>
+      <ul class="menu">
+        <li><div class="row"><span class="name" data-i18n="nLentil">Linseneintopf</span><span class="dots"></span><span class="price">11,40</span></div>
+            <p class="desc" data-i18n="dLentil">Orientalisch, Marokko-Style, Süßkartoffel · vegan</p></li>
+        <li><div class="row"><span class="name">Yellow Chicken Curry</span><span class="dots"></span><span class="price">12,90</span></div>
+            <p class="desc" data-i18n="dCurry">Thai Style · scharf</p></li>
+        <li><div class="row"><span class="name">Butter Chicken</span><span class="dots"></span><span class="price">12,90</span></div>
+            <p class="desc" data-i18n="dButter">India Style</p></li>
+      </ul>
+      <p class="fine" data-i18n="hotNote">Alle Hot Bowls mit Reis oder Quinoa.</p>
+    </div>
+
+    <div class="bowls-visual" aria-hidden="true">
+      <div class="plate-wrap"><img class="plate spin" data-spin="0.09" src="assets/img/plate-bowl.webp" alt=""></div>
+      <img class="float f1" data-float="-0.25" src="assets/img/corn.webp" alt="">
+      <img class="float f2" data-float="0.18" src="assets/img/edamame.webp" alt="">
+      <img class="float f3" data-float="-0.12" src="assets/img/falafel.webp" alt="">
+      <img class="float f4" data-float="0.3" src="assets/img/tuna.webp" alt="">
+    </div>
+  </section>
+
+  <!-- PASTA: das Instagram-Format als Sektion -->
+  <section class="pasta" id="pasta" data-ground="navy">
+    <p class="eyebrow center" data-i18n="pastaEyebrow">Frisch gekocht, solange der Vorrat reicht</p>
+    <h2 class="pasta-word" aria-label="Pasta">PASTA</h2>
+    <div class="pasta-plates">
+      <figure class="pp">
+        <img class="plate spin" data-spin="0.07" src="assets/img/plate-lasagna.webp" alt="Lasagna Spinaci">
+        <span class="sticker">11,90<small>€</small></span>
+        <figcaption><b>Lasagna Spinaci</b><span data-i18n="dLasagna">Spinat, Ricotta, Tomatensauce, Mozzarella</span></figcaption>
+      </figure>
+      <figure class="pp">
+        <img class="plate spin" data-spin="-0.06" src="assets/img/plate-pasta.webp" alt="Pasta Bolognese">
+        <span class="sticker">11,90<small>€</small></span>
+        <figcaption><b>Pasta Bolognese</b><span data-i18n="dBolo">Spaghetti, Rinderragù, Parmesan, Basilikum</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- OFEN -->
+  <section class="ofen" id="ofen" data-ground="gold">
+    <p class="eyebrow center" data-i18n="ovenEyebrow">Aus dem Ofen, jeden Morgen</p>
+    <div class="ofen-rows" aria-label="Croissant, Babka, Bagel, Baguette, Sandwiches">
+      <div class="ofen-row" data-drift="-0.35"><span>Croissant</span><i>^</i><span>Babka</span><i>^</i><span>Bagel</span><i>^</i><span>Croissant</span><i>^</i><span>Babka</span></div>
+      <div class="ofen-row" data-drift="0.3"><span>Baguette</span><i>^</i><span>Sandwiches</span><i>^</i><span>Baguette</span><i>^</i><span>Sandwiches</span></div>
+    </div>
+    <p class="lead center" data-i18n="ovenLead">Gebäck und Sandwiches wechseln täglich. Was heute da ist, siehst du an der Theke.</p>
+  </section>
+
+  <!-- BREWS -->
+  <section class="brews" id="brews" data-ground="cream">
+    <div class="brews-head">
+      <h2 class="display">The<br>Brews</h2>
+      <p class="lead" data-i18n="brewsLead">Alle Milchgetränke auch mit Hafermilch (+ 0,60). Extra Shot + 1,50.</p>
+    </div>
+    <div class="brews-cols">
+      <ul class="menu">
+        <li><div class="row"><span class="name">Espresso</span><span class="dots"></span><span class="price">3,90</span></div></li>
+        <li><div class="row"><span class="name">Espresso Doppio</span><span class="dots"></span><span class="price">4,90</span></div></li>
+        <li><div class="row"><span class="name">Espresso Macchiato</span><span class="dots"></span><span class="price">4,40</span></div></li>
+        <li><div class="row"><span class="name">Verlängerter / Lungo</span><span class="dots"></span><span class="price">4,60 <em>L</em> 5,90</span></div></li>
+        <li><div class="row"><span class="name">Cappuccino</span><span class="dots"></span><span class="price">4,90 <em>L</em> 5,90</span></div></li>
+        <li><div class="row"><span class="name">Flat White</span><span class="dots"></span><span class="price">5,40</span></div></li>
+        <li><div class="row"><span class="name">Latte Macchiato</span><span class="dots"></span><span class="price">5,80</span></div></li>
+        <li><div class="row"><span class="name" data-i18n="nChoc">Heiße Schokolade</span><span class="dots"></span><span class="price">5,80</span></div></li>
+        <li><div class="row"><span class="name" data-i18n="nTea">Tee</span><span class="dots"></span><span class="price">4,90</span></div></li>
+      </ul>
+      <div>
+        <h3 class="sub-display">Specials</h3>
+        <ul class="menu">
+          <li><div class="row"><span class="name">Chai Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li><div class="row"><span class="name">Spicy Pumpkin Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li><div class="row"><span class="name">Marshmallow Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
+          <li><div class="row"><span class="name">Cinnamon Roll Latte</span><span class="dots"></span><span class="price">5,80</span></div></li>
+        </ul>
+        <h3 class="sub-display">All I need is Matcha</h3>
+        <ul class="menu">
+          <li><div class="row"><span class="name">Matcha Latte</span><span class="dots"></span><span class="price">5,90</span></div></li>
+          <li><div class="row"><span class="name">Strawberry Matcha Latte</span><span class="dots"></span><span class="price">6,40</span></div></li>
+        </ul>
+        <p class="fine" data-i18n="iced">Alle Specials gibt es auch iced.</p>
+      </div>
+    </div>
+    <figure class="season">
+      <img src="assets/img/pumpkin-latte.webp" alt="Spicy Pumpkin Latte" data-float="-0.12">
+      <figcaption><span class="eyebrow" data-i18n="seasonEyebrow">Nur im Herbst</span><b>Spicy Pumpkin Latte</b><span class="price">5,80</span></figcaption>
+    </figure>
+  </section>
+
+  <!-- BESUCH -->
+  <section class="besuch" id="besuch" data-ground="sky">
+    <h2 class="display" data-i18n="visitTitle">Komm vorbei</h2>
+    <div class="besuch-grid">
+      <div>
+        <p class="eyebrow" data-i18n="whereEyebrow">Wo</p>
+        <p class="big">Designer Outlet Salzburg</p>
+        <p class="body">Kasernenstraße 1<br>5073 Wals-Himmelreich</p>
+        <a class="btn" href="https://www.google.com/maps/search/?api=1&query=Designer+Outlet+Salzburg+Kasernenstra%C3%9Fe+1+Wals-Himmelreich" target="_blank" rel="noopener" data-i18n="route">Route planen</a>
+      </div>
+      <div>
+        <p class="eyebrow" data-i18n="whenEyebrow">Wann</p>
+        <table class="hours">
+          <tr><th data-i18n="monFri">Montag bis Freitag</th><td>09:00 – 19:00</td></tr>
+          <tr><th data-i18n="sat">Samstag</th><td>09:00 – 18:00</td></tr>
+          <tr><th data-i18n="sun">Sonntag</th><td data-i18n="closed">geschlossen</td></tr>
+        </table>
+        <p class="fine" data-i18n="bowlHours">Bowls gibt es von 11 bis 17 Uhr.</p>
+      </div>
+    </div>
+    <div class="finish" aria-hidden="true"></div>
+  </section>
+</main>
+
+<footer class="foot" data-ground="burgundy">
+  <span class="wordmark foot-mark" aria-hidden="true"></span>
+  <p class="caret-line"><span>Bakes</span><i>^</i><span>Bowls</span><i>^</i><span>Brews</span></p>
+  <p class="foot-row"><a href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener">Instagram @the.bakery__salzburg</a><span>© 2026 THE BAKERY</span></p>
+</footer>
+
+<!-- die Frau aus dem Logo: läuft beim Scrollen mit -->
+<div class="walker" id="walker" aria-hidden="true">
+  <canvas id="puppet" width="438" height="800"></canvas>
+  <span class="bubble" id="bubble" data-i18n="bubble">Bis gleich!</span>
+</div>
+
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

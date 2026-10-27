@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="de" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bowls Lab — the.bakery</title>
+<meta name="theme-color" content="#000045">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#000045; --sky:#BFE4ED; --blush:#F1C2CC; --burgundy:#730E23; --gold:#C9762B;
+  --display:"Anton",system-ui,sans-serif;
+  --body:"Archivo",system-ui,sans-serif;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+body{
+  margin:0; background:var(--ink); color:var(--sky);
+  font-family:var(--body); overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+img{ display:block; max-width:100%; }
+svg{ fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+:focus-visible{ outline:3px solid var(--gold); outline-offset:3px; }
+
+.lab{ padding:26px 20px 60px; }
+
+.lab__note{
+  font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--gold); margin:0 0 22px;
+}
+
+h1{
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(46px,15vw,92px); line-height:.9;
+  margin:0 0 4px; text-transform:uppercase; letter-spacing:-.01em;
+}
+
+/* ============ مسرح الدوران ============ */
+
+.bowlbox{ margin:22px auto 0; width:min(84vw,420px); }
+
+.stage{
+  position:relative;
+  width:100%; aspect-ratio:1;
+  perspective:1100px;                 /* هون بيصير المنظور ثلاثي الأبعاد */
+  perspective-origin:50% 42%;
+  touch-action:pan-y;                 /* السحب الأفقي إلنا، العمودي للصفحة */
+  cursor:grab;
+  user-select:none; -webkit-user-select:none;
+}
+.stage.is-grabbing{ cursor:grabbing; }
+
+/* الظل بيكبر ويصغر مع الميلان، فبيعطي إحساس إن الصحن مرفوع */
+.stage__shadow{
+  position:absolute; inset-inline:8%; inset-block-end:2%;
+  height:9%; border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,.55), transparent 70%);
+  filter:blur(9px);
+}
+
+.disc{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  will-change:transform;
+}
+.disc__img{
+  position:absolute; inset:0;
+  width:100%; height:100%; object-fit:contain;
+  backface-visibility:hidden;
+  filter:drop-shadow(0 26px 34px rgba(0,0,0,.5));
+}
+/* الصحن الجاي بيكون مخفي لحد ما يجي دوره */
+.disc__img.is-next{ opacity:0; }
+
+/* حلقة رفيعة بتلف مع الصحن، بتوضّح إنه عم يدور */
+.ring{
+  position:absolute; inset:-3%;
+  border:1.5px dashed rgba(191,228,237,.28);
+  border-radius:50%;
+  pointer-events:none;
+}
+
+/* ============ المكوّنات ============
+   على الموبايل: شرائح تحت الصحن. الدوران حواليه بيقصّ الكلمات
+   الطويلة مثل KICHERERBSEN على شاشة 390 بكسل.
+   على الشاشات العريضة: بتلف حوالين الصحن زي المرجع. */
+
+.orbit{
+  display:flex; flex-wrap:wrap; gap:7px; justify-content:center;
+  margin-top:20px;
+}
+.pip{
+  font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink); background:var(--sky);
+  padding:6px 10px; white-space:nowrap;
+  transform:scale(.7); opacity:0;
+  transition:opacity .3s ease, transform .3s cubic-bezier(.22,1,.36,1);
+}
+.pip.is-on{ opacity:1; transform:scale(1); }
+
+@media (min-width:900px){
+  /* الصندوق أوسع من الصحن، فبيصير في مكان للأعمدة الجانبية */
+  .bowlbox{ position:relative; width:min(74vw,860px); }
+  .stage{ width:56%; margin-inline:auto; }
+  .orbit{ position:absolute; inset:0; display:block; margin:0; pointer-events:none; }
+  .pip{ position:absolute; transform:translate(-50%,-50%) scale(.7); }
+  .pip.is-on{ transform:translate(-50%,-50%) scale(1); }
+}
+
+/* ============ الاسم والسعر ============ */
+
+.meta{ text-align:center; margin-top:26px; min-height:120px; }
+.meta__name{
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(30px,9vw,54px); line-height:1;
+  margin:0; text-transform:uppercase;
+}
+.meta__price{
+  font-family:var(--display); font-size:clamp(22px,6vw,34px);
+  color:var(--gold); margin:8px 0 0;
+}
+.meta__desc{
+  font-size:14px; line-height:1.5; opacity:.8;
+  max-width:34ch; margin:12px auto 0;
+}
+
+/* ============ التنقّل ============ */
+
+.nav{
+  display:flex; align-items:center; justify-content:center; gap:18px;
+  margin-top:26px;
+}
+.nav button{
+  width:52px; height:52px; border-radius:50%;
+  display:grid; place-content:center;
+  background:transparent; color:var(--sky);
+  border:1.5px solid rgba(191,228,237,.45);
+  cursor:pointer; transition:background .18s, color .18s, transform .18s;
+}
+.nav button svg{ width:20px; height:20px; }
+.nav button:active{ transform:scale(.92); }
+@media (hover:hover){ .nav button:hover{ background:var(--sky); color:var(--ink); } }
+
+.count{
+  font-family:var(--display); font-size:15px; letter-spacing:.14em;
+  min-width:74px; text-align:center; font-variant-numeric:tabular-nums;
+}
+.count b{ color:var(--gold); font-weight:400; }
+
+.hint{
+  text-align:center; margin-top:20px;
+  font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; opacity:.5;
+}
+
+/* قائمة الأسماء، بتصير عمود جانبي على الديسكتوب */
+.picks{
+  display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
+  margin-top:30px; padding-bottom:4px;
+}
+.picks::-webkit-scrollbar{ display:none; }
+.pick{
+  flex:0 0 auto; min-height:44px; padding:10px 16px;
+  font-family:var(--display); font-size:14px; letter-spacing:.06em;
+  text-transform:uppercase; white-space:nowrap;
+  background:transparent; color:var(--sky);
+  border:1.5px solid rgba(191,228,237,.3);
+  cursor:pointer; opacity:.75;
+  transition:opacity .2s, background .2s, color .2s;
+}
+.pick.is-on{ opacity:1; background:var(--sky); color:var(--ink); border-color:var(--sky); }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation:none !important; transition-duration:.001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <p class="lab__note">Prototyp · Bowls 3D</p>
+  <h1>Bowls</h1>
+
+  <div class="bowlbox">
+    <div class="stage" id="stage">
+      <div class="stage__shadow" id="shadow"></div>
+      <div class="ring"></div>
+      <div class="disc" id="disc">
+        <img class="disc__img" id="imgA" src="assets/img/bowl/tuna.webp" alt="">
+        <img class="disc__img is-next" id="imgB" src="assets/img/bowl/veggie.webp" alt="">
+      </div>
+    </div>
+    <div class="orbit" id="orbit"></div>
+  </div>
+
+  <div class="meta">
+    <h2 class="meta__name" id="name">The Tuna Bowl</h2>
+    <p class="meta__price" id="price">14,90 €</p>
+    <p class="meta__desc" id="desc"></p>
+  </div>
+
+  <div class="nav">
+    <button type="button" id="prev" aria-label="Vorherige Bowl">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <span class="count"><b id="cur">01</b> / <span id="tot">02</span></span>
+    <button type="button" id="next" aria-label="Nächste Bowl">
+      <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <p class="hint" id="hint">Wischen zum Drehen</p>
+
+  <div class="picks" id="picks"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // بيانات تجريبية. بالموقع الحقيقي بتيجي من menu-data.js
+  var BOWLS = [
+    { name:"The Tuna Bowl", price:"14,90 €", img:"assets/img/bowl/tuna.webp",
+      desc:"Jasminreis, Quinoa, Salat, Thunfisch, Avocado Cream, Ingwer",
+      pips:["Thunfisch","Avocado","Mango","Edamame","Gurke","Jasminreis"] },
+    { name:"Oriental Bowl", price:"12,90 €", img:"assets/img/bowl/veggie.webp",
+      desc:"Jasminreis, Quinoa, Salat, Kichererbsen, Edamame, knusprige Falafel",
+      pips:["Falafel","Kichererbsen","Edamame","Mais","Tofu","Quinoa"] }
+  ];
+
+  var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var stage = document.getElementById("stage");
+  var disc  = document.getElementById("disc");
+  var imgA  = document.getElementById("imgA");
+  var imgB  = document.getElementById("imgB");
+  var orbit = document.getElementById("orbit");
+  var shadow= document.getElementById("shadow");
+
+  var i = 0;             // البول الحالي
+  var spin = 0;          // زاوية الدوران التراكمية
+  var busy = false;
+  var front = imgA, back = imgB;
+
+  /* ---------- رسم المكوّنات ---------- */
+  var wide = matchMedia("(min-width: 900px)");
+
+  function drawPips(bowl){
+    orbit.innerHTML = "";
+    var n = bowl.pips.length;
+
+    bowl.pips.forEach(function(text, k){
+      var el = document.createElement("span");
+      el.className = "pip";
+      el.textContent = text;
+
+      // على الشاشات العريضة: عمودين على جنبَي الصحن، زي المرجع.
+      // ما منوزّعهم على دائرة كاملة لأن اللي بينزل تحت بيتصادم
+      // مع اسم البول، واللي بيطلع فوق بيتصادم مع العنوان.
+      // على الموبايل منسيبهم شرائح متتالية، وإلا بتنقصّ عالحواف.
+      if (wide.matches){
+        var half = Math.ceil(n / 2);
+        var right = k < half;
+        var idx = right ? k : k - half;
+        var count = right ? half : n - half;
+        var t = count === 1 ? 0.5 : idx / (count - 1);
+
+        el.style.left = (right ? 78 : 22) + "%";
+        el.style.top  = (20 + t * 60) + "%";
+        el.style.textAlign = right ? "left" : "right";
+      }
+
+      orbit.appendChild(el);
+      setTimeout(function(){ el.classList.add("is-on"); }, 260 + k * 55);
+    });
+  }
+
+  // لو المستخدم لف الموبايل أو كبّر النافذة، منعيد التوزيع
+  wide.addEventListener("change", function(){ drawPips(BOWLS[i]); });
+
+  function paint(){
+    var b = BOWLS[i];
+    document.getElementById("name").textContent  = b.name;
+    document.getElementById("price").textContent = b.price;
+    document.getElementById("desc").textContent  = b.desc;
+    document.getElementById("cur").textContent   = String(i + 1).padStart(2, "0");
+    document.querySelectorAll(".pick").forEach(function(p, k){
+      p.classList.toggle("is-on", k === i);
+    });
+    drawPips(b);
+  }
+
+  /* ---------- الدوران السريع للانتقال ----------
+     الصحن بيلف نصف لفة، وبمنتصف اللفة منبدّل الصورة،
+     فبتحسّ كأنه نفس الصحن انقلب وطلع فيه أكل تاني. */
+  function go(dir){
+    if (busy) return;
+    busy = true;
+
+    var nextIndex = (i + dir + BOWLS.length) % BOWLS.length;
+    back.src = BOWLS[nextIndex].img;
+
+    orbit.querySelectorAll(".pip").forEach(function(p){ p.classList.remove("is-on"); });
+
+    if (REDUCED){
+      front.style.opacity = 0; back.style.opacity = 1;
+      var t = front; front = back; back = t;
+      i = nextIndex; paint(); busy = false;
+      return;
+    }
+
+    spin += dir * 180;
+
+    gsap.timeline({ onComplete:function(){ busy = false; } })
+      .to(disc, {
+        rotateZ: spin,
+        rotateX: 26,               // بيميل، فبيبيّن إنه قرص بالفضاء
+        scale: .82,
+        duration: .34,
+        ease: "power2.in"
+      })
+      .to(shadow, { scaleX:.7, opacity:.45, duration:.34, ease:"power2.in" }, 0)
+      // بمنتصف اللفة، لما يكون الصحن مائل وصغير، منبدّل الصورة
+      .to(front, { opacity:0, duration:.01 }, .34)
+      .to(back,  { opacity:1, duration:.01 }, .34)
+      .to(disc, {
+        rotateX: 0,
+        scale: 1,
+        duration: .52,
+        ease: "back.out(1.4)"
+      })
+      .to(shadow, { scaleX:1, opacity:1, duration:.52, ease:"power2.out" }, "<")
+      .call(function(){
+        var t = front; front = back; back = t;
+        i = nextIndex;
+        paint();
+      }, null, .36);
+  }
+
+  /* ---------- السحب بالإصبع بيلف الصحن مباشرة ---------- */
+  var dragging = false, startX = 0, startSpin = 0, moved = 0;
+
+  function down(e){
+    if (busy) return;
+    dragging = true; moved = 0;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    startSpin = spin;
+    stage.classList.add("is-grabbing");
+  }
+
+  function move(e){
+    if (!dragging || busy) return;
+    var x = (e.touches ? e.touches[0].clientX : e.clientX);
+    moved = x - startX;
+    // كل 2 بكسل سحب = درجة دوران
+    gsap.set(disc, { rotateZ: startSpin + moved / 2 });
+  }
+
+  function up(){
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove("is-grabbing");
+
+    var threshold = Math.min(90, stage.offsetWidth * 0.22);
+
+    if (Math.abs(moved) > threshold){
+      // سحب كفاية: منكمّل للبول اللي بعده
+      spin = startSpin;
+      go(moved < 0 ? 1 : -1);
+    } else {
+      // ما سحب كفاية: بيرجع مطرحه بنبضة
+      gsap.to(disc, { rotateZ: startSpin, duration: .7, ease: "elastic.out(1,.5)" });
+      spin = startSpin;
+    }
+  }
+
+  stage.addEventListener("touchstart", down, { passive:true });
+  stage.addEventListener("touchmove",  move, { passive:true });
+  stage.addEventListener("touchend",   up);
+  stage.addEventListener("mousedown",  down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup",   up);
+
+  document.getElementById("next").addEventListener("click", function(){ go(1); });
+  document.getElementById("prev").addEventListener("click", function(){ go(-1); });
+
+  // كيبورد
+  window.addEventListener("keydown", function(e){
+    if (e.key === "ArrowRight") go(1);
+    if (e.key === "ArrowLeft")  go(-1);
+  });
+
+  /* ---------- أزرار الأسماء ---------- */
+  var picks = document.getElementById("picks");
+  BOWLS.forEach(function(b, k){
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "pick"; btn.textContent = b.name;
+    btn.addEventListener("click", function(){
+      if (k !== i) go(k > i ? 1 : -1);
+    });
+    picks.appendChild(btn);
+  });
+
+  document.getElementById("tot").textContent = String(BOWLS.length).padStart(2, "0");
+  if (!("ontouchstart" in window)) document.getElementById("hint").textContent = "Ziehen zum Drehen";
+
+  paint();
+})();
+</script>
+</body>
+</html>

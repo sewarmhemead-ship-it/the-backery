@@ -1,0 +1,28 @@
+[build]
+  publish = "."
+
+# الصور والخطوط ما بتتغيّر كتير، فمنخليها بالكاش سنة كاملة.
+# هيك الزبون اللي بيرجع عالمحل بيفتح الموقع فوراً بدون تحميل.
+[[headers]]
+  for = "/assets/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# الجافاسكربت والستايل بتتغيّر لما تعدّل المنيو،
+# فمنخلي المتصفح يسأل كل مرة إذا في نسخة جديدة.
+[[headers]]
+  for = "/assets/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="de" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>the.bakery — Designer Outlet Salzburg</title>
+<meta name="description" content="Sandwich Corner, Bowl Bar und Coffee Shop im Designer Outlet Salzburg. Poke Bowls, Sandwiches und Kaffee. Kasernenstrasse 1, 5073 Wals-Himmelreich.">
+<meta name="theme-color" content="#000045">
+
+<meta property="og:type" content="restaurant">
+<meta property="og:title" content="the.bakery — Designer Outlet Salzburg">
+<meta property="og:description" content="bakes ^ bowls ^ brews. Poke Bowls, Sandwiches und Kaffee im Designer Outlet Salzburg.">
+<meta property="og:image" content="assets/img/logo.webp">
+
+<link rel="icon" href="assets/img/mark.webp">
+<link rel="apple-touch-icon" href="assets/img/icon-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="image" href="assets/img/logo.webp">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+
+<body class="is-booting">
+
+<!-- ============ شاشة التحميل: البنت ماشية بالكرواسون ============ -->
+<div class="boot" id="boot">
+  <div class="boot__walk">
+    <img class="boot__girl" src="assets/img/logo.webp" alt="" fetchpriority="high">
+    <div class="boot__road" aria-hidden="true"></div>
+  </div>
+
+  <div class="boot__meta">
+    <span class="boot__word" data-i18n="loading">frisch aus dem Ofen</span>
+    <span class="boot__num"><i id="bootNum">0</i>%</span>
+  </div>
+
+  <div class="boot__bar" aria-hidden="true"><i id="bootFill"></i></div>
+
+  <!-- ألواح الانسحاب، بتطلع لفوق وبتكشف الموقع -->
+  <div class="boot__panels" aria-hidden="true">
+    <i></i><i></i><i></i><i></i><i></i>
+  </div>
+</div>
+
+
+<!-- ============ الشريط العلوي ============ -->
+<header class="bar" id="bar">
+  <a class="bar__mark" href="#top" aria-label="the.bakery">
+    <img src="assets/img/mark.webp" alt="" width="30" height="30">
+    <span>the.bakery</span>
+  </a>
+
+  <div class="lang" role="group" aria-label="Sprache / Language / اللغة">
+    <button type="button" data-lang="de">DE</button>
+    <button type="button" data-lang="en">EN</button>
+    <button type="button" data-lang="ar">ع</button>
+  </div>
+</header>
+
+
+<main id="top">
+
+  <!-- ============ الهيرو ============ -->
+  <section class="hero room" data-room="ink">
+    <div class="hero__inner">
+      <span class="hero__tag">bakes <b>^</b> bowls <b>^</b> brews</span>
+
+      <h1 class="hero__head">
+        <span class="line"><span data-i18n="heroLine1">EAT FRESH.</span></span>
+        <span class="line"><span data-i18n="heroLine2">FEEL GOOD.</span></span>
+      </h1>
+
+      <p class="hero__sub" data-i18n="heroSub">Sandwich Corner, Bowl Bar und Coffee Shop im Designer Outlet Salzburg.</p>
+
+      <a class="cta-jump" href="#tabs">
+        <span data-i18n="heroCta">Zur Karte</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m0 0l-6-6m6 6l6-6"/></svg>
+      </a>
+    </div>
+
+    <img class="hero__bowl" src="assets/img/bowl-black.webp" alt="" aria-hidden="true">
+    <img class="fly fly--a" src="assets/img/edamame.webp" alt="" aria-hidden="true">
+    <img class="fly fly--b" src="assets/img/falafel.webp" alt="" aria-hidden="true">
+    <img class="fly fly--c" src="assets/img/tuna.webp"    alt="" aria-hidden="true">
+    <img class="fly fly--d" src="assets/img/corn.webp"    alt="" aria-hidden="true">
+  </section>
+
+
+  <!-- ============ شريط متحرك ============ -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee__track" id="marquee"></div>
+  </div>
+
+
+  <!-- ============ تبويبات الأقسام، لاصقة، أهم شي بالموبايل ============ -->
+  <nav class="tabs" id="tabs" aria-label="Menu">
+    <div class="tabs__scroll" id="tabsScroll"></div>
+  </nav>
+
+
+  <!-- ============ الجديد عنا، بيتعبّى تلقائياً من الوسم new ============ -->
+  <section class="drops room" data-room="burgundy" id="drops">
+    <span class="kicker" data-i18n="dropsKicker">Frisch dazu</span>
+    <h2 class="drops__head" data-i18n="dropsTitle">NEU BEI UNS</h2>
+    <p class="drops__note" data-i18n="dropsNote">Was gerade neu über die Theke geht.</p>
+    <div class="rail" id="rail"></div>
+  </section>
+
+
+  <!-- ============ غرف المنيو، بتتركّب من menu-data.js ============ -->
+  <div id="menu"></div>
+
+
+  <!-- ============ الزيارة والدوام ============ -->
+  <section class="visit room" data-room="ink" id="visit">
+    <span class="kicker" data-i18n="visitKicker">Besuch uns</span>
+    <h2 class="visit__head" data-i18n="visitTitle">IM DESIGNER OUTLET</h2>
+
+    <div class="visit__grid">
+      <div>
+        <address class="visit__addr" data-i18n="visitAddress">Kasernenstraße 1<br>5073 Wals-Himmelreich</address>
+        <a class="cta-map" href="https://www.google.com/maps/search/?api=1&query=Designer+Outlet+Salzburg%2C+Kasernenstra%C3%9Fe+1%2C+5073+Wals-Himmelreich" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          <span data-i18n="visitDirections">Route öffnen</span>
+        </a>
+      </div>
+
+      <div>
+        <h3 class="hours__head" data-i18n="hoursTitle">Öffnungszeiten</h3>
+        <dl class="hours">
+          <div class="hours__row" data-day="week">
+            <dt data-i18n="hoursWeek">Montag bis Freitag</dt><dd>09:00&ndash;19:00</dd>
+          </div>
+          <div class="hours__row" data-day="sat">
+            <dt data-i18n="hoursSat">Samstag</dt><dd>09:00&ndash;18:00</dd>
+          </div>
+          <div class="hours__row" data-day="sun">
+            <dt data-i18n="hoursSun">Sonntag</dt><dd data-i18n="hoursClosed">geschlossen</dd>
+          </div>
+        </dl>
+        <p class="hours__note" data-i18n="hoursBowlNote">Bowls gibt es von 11 bis 17 Uhr.</p>
+      </div>
+    </div>
+
+    <img class="visit__pola" src="assets/img/bowl-tuna.webp" alt="" loading="lazy">
+  </section>
+
+</main>
+
+
+<!-- ============ التذييل ============ -->
+<footer class="foot room" data-room="blush">
+  <img class="foot__girl" src="assets/img/logo.webp" alt="" width="66" height="120" loading="lazy">
+  <p class="foot__tag">bakes <b>^</b> bowls <b>^</b> brews</p>
+
+  <a class="cta-insta" href="https://www.instagram.com/the.bakery__salzburg/" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg>
+    <span>@the.bakery__salzburg</span>
+  </a>
+
+  <p class="foot__legal">
+    <span>&copy; <i id="year">2026</i> the.bakery</span>
+    <span data-i18n="footerRights">Alle Rechte vorbehalten.</span>
+  </p>
+</footer>
+
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.3.11/dist/lenis.min.js" defer></script>
+<script src="assets/js/menu-data.js" defer></script>
+<script src="assets/js/i18n.js" defer></script>
+<script src="assets/js/main.js" defer></script>
+</body>
+</html>
