@@ -80,7 +80,7 @@ a { color: inherit; }
   display: flex; align-items: center; gap: 28px; padding: 18px var(--gutter);
   transition: transform .5s var(--ease), background-color .7s var(--ease);
 }
-.nav.solid { background: color-mix(in srgb, var(--ground) 88%, transparent); backdrop-filter: blur(8px); }
+.nav.solid { background: color-mix(in srgb, var(--ground) 88%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .nav-mark { width: 150px; color: var(--ink); opacity: 0; transition: opacity .4s; }
 .nav.solid .nav-mark { opacity: 1; }
 .nav-links { display: flex; gap: 26px; margin-inline-start: auto; }
@@ -295,6 +295,9 @@ a { color: inherit; }
   .nav-links a { font-family: var(--display); font-stretch: 100%; font-size: clamp(40px, 12vw, 64px); letter-spacing: 0; line-height: 1.15; padding: 4px 0; }
   .nav.open .nav-links { opacity: 1; visibility: visible; transform: none; transition: opacity .3s var(--ease), transform .3s var(--ease); }
   .nav.open .nav-mark { opacity: 1; }
+  /* backdrop-filter macht den Header zum Bezugsrahmen für position:fixed (vor allem iOS),
+     dann wäre die Menü-Ebene nur so groß wie der Header. Offen also ohne Filter. */
+  .nav.open { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--ground); }
   .menu-open body { overflow: hidden; }
   .menu-open .walker { opacity: 0; }
   .nav { gap: 12px; padding: 12px 16px; }
