@@ -78,6 +78,22 @@
     }
   }
 
+  /* ---------- 3b. Foto antippen: der große Teller zeigt dieses Gericht ---------- */
+  const bigPlate = document.getElementById('big-plate');
+  const thumbs = [...document.querySelectorAll('.thumb')];
+  function showPlate(btn) {
+    if (bigPlate.getAttribute('src') === btn.dataset.plate) return;
+    thumbs.forEach(t => t.classList.toggle('on', t === btn));
+    bigPlate.classList.add('swap');
+    setTimeout(() => { bigPlate.src = btn.dataset.plate; bigPlate.classList.remove('swap'); }, reduce ? 0 : 220);
+  }
+  thumbs.forEach(t => {
+    t.addEventListener('click', () => showPlate(t));
+    t.addEventListener('pointerenter', () => showPlate(t));
+    t.addEventListener('focus', () => showPlate(t));
+  });
+  if (thumbs[0]) thumbs[0].classList.add('on');
+
   /* ---------- 4. Die Frau ---------- */
   const walker = document.getElementById('walker');
   const stage = document.querySelector('.hero-stage');
@@ -180,12 +196,25 @@
   watch.forEach(i => { if (i.complete) loaded++; else { i.addEventListener('load', tick, { once: true }); i.addEventListener('error', tick, { once: true }); } });
   let fontsOk = false; document.fonts.ready.then(() => { fontsOk = true; });
 
+  function finishLoader() {
+    if (loaderDone) return;
+    loaderDone = true;
+    loader.classList.add('done');
+    root.classList.remove('is-loading');
+    setTimeout(() => loader.remove(), 1000);
+  }
+  // Egal was passiert: spätestens nach 4 Sekunden geht es los, auch bei langsamen Handys
+  setTimeout(finishLoader, 4000);
+
+  let lastLoaderT = performance.now();
   function loaderFrame(now) {
     if (loaderDone) return;
     const t = now / 1000;
     const target = Math.min(1, loaded / watch.length) * (fontsOk ? 1 : .9);
-    shown += (target - shown) * .08;
-    if (target === 1 && shown > .995) shown = 1;
+    // zeitbasiert, nicht pro Frame: sonst hängt der Balken auf langsamen Geräten
+    const dt = Math.min(1, (now - lastLoaderT) / 1000); lastLoaderT = now;
+    shown += (target - shown) * (1 - Math.exp(-dt * 6));
+    if (target === 1 && shown > .99) shown = 1;
     fill.style.clipPath = root.dir === 'rtl' ? `inset(0 0 0 ${(1 - shown) * 100}%)` : `inset(0 ${(1 - shown) * 100}% 0 0)`;
     pct.textContent = Math.round(shown * 100) + '%';
     if (BODY.complete && LEG_F.complete && LEG_B.complete) {
@@ -193,20 +222,15 @@
       lctx.canvas.style.transform = `translateY(${-Math.abs(Math.cos(ph)) * 8}px)`;
       drawPuppet(lctx, t, ph, reduce ? 0 : 1);
     }
-    if (shown === 1 && now - t0 > 1400) {
-      loaderDone = true;
-      loader.classList.add('done');
-      root.classList.remove('is-loading');
-      setTimeout(() => loader.remove(), 1000);
-      return;
-    }
+    if (shown === 1 && now - t0 > 1400) { finishLoader(); return; }
     requestAnimationFrame(loaderFrame);
   }
   requestAnimationFrame(loaderFrame);
 
+  let lastY = -1;
   function frame(now) {
     const t = now / 1000, y = scrollY, vw = innerWidth, vh = innerHeight;
-    motion(y, vh);
+    if (y !== lastY) { motion(y, vh); lastY = y; }
     place(t, y, vw, vh);
     requestAnimationFrame(frame);
   }

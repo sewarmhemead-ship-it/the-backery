@@ -19,6 +19,7 @@
    ============================================================ */
 const ALLERGENS = {
   "oriental-bowl": "",               // Oriental Bowl
+  "korean-paprika-chicken-bowl": "",  // Korean Paprika Chicken Bowl
   "the-tuna-bowl": "",               // The Tuna Bowl
   "caesar-chicken-bowl": "",         // Caesar Chicken Bowl
   "your-signature-bowl": "",         // Your Signature Bowl

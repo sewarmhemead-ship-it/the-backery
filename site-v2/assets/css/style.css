@@ -33,12 +33,12 @@
 :root[data-ground="cream"]    { --ground: var(--cream);    --ink: var(--burgundy); --accent: var(--crust); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: clip; }
 body {
   background: var(--ground); color: var(--ink);
   font-family: var(--cond); font-stretch: 100%; font-size: 18px; line-height: 1.5;
   transition: background-color .7s var(--ease), color .7s var(--ease);
-  overflow-x: hidden;
+  overflow-x: clip;   /* clip, nicht hidden: sonst geht position:sticky kaputt */
   -webkit-font-smoothing: antialiased;
 }
 html[lang="ar"] body { font-family: var(--display); }
@@ -69,7 +69,7 @@ a { color: inherit; }
 .loader-mark .ghost { opacity: .16; }
 .loader-mark .fill { position: absolute; inset: 0; clip-path: inset(0 100% 0 0); }
 .loader-pct { font-stretch: 75%; font-weight: 700; font-size: 15px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
-.is-loading body { overflow: hidden; }
+html.is-loading { overflow: hidden; }
 .is-loading .hero *, .is-loading .hero *::before { animation-play-state: paused !important; }
 .is-loading .walker { opacity: 0; }
 .walker { transition: opacity .4s; }
@@ -200,7 +200,7 @@ a { color: inherit; }
 .ofen .lead { max-width: 40ch; padding-inline: var(--gutter); }
 
 /* ---------- BREWS ---------- */
-.brews { position: relative; padding: 140px var(--gutter) 170px; }
+.brews { position: relative; padding: 140px var(--gutter) 170px; overflow-x: clip; }
 .brews-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
 .brews-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6vw; margin-top: 30px; max-width: 1180px; }
 .brews-cols .sub-display:first-child { margin-top: 30px; }
@@ -236,6 +236,15 @@ a { color: inherit; }
 .hours th, .hours td { padding: 10px 0; border-bottom: 1.5px solid color-mix(in srgb, currentColor 22%, transparent); text-align: start; font-weight: 600; }
 .hours td { text-align: end; font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums; }
 .finish { height: 30vh; }   /* hier kommt die Frau an */
+
+/* ---------- Gerichte mit Foto ---------- */
+.menu li.photo { display: grid; grid-template-columns: 84px minmax(0, 1fr); column-gap: 16px; align-items: center; }
+.thumb { width: 84px; height: 84px; min-width: 44px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer;
+  transition: transform .25s var(--ease); filter: drop-shadow(0 6px 8px rgba(0, 0, 45, .22)); }
+.thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb:hover, .thumb.on { transform: scale(1.1) rotate(-6deg); }
+.plate.swap { opacity: 0; }
+#big-plate { transition: opacity .22s var(--ease); }
 
 /* ---------- Allergene ---------- */
 .alg { display: inline-flex; gap: 3px; margin-inline-start: 8px; vertical-align: 3px; }
@@ -298,7 +307,7 @@ a { color: inherit; }
   /* backdrop-filter macht den Header zum Bezugsrahmen für position:fixed (vor allem iOS),
      dann wäre die Menü-Ebene nur so groß wie der Header. Offen also ohne Filter. */
   .nav.open { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--ground); }
-  .menu-open body { overflow: hidden; }
+  html.menu-open { overflow: hidden; }
   .menu-open .walker { opacity: 0; }
   .nav { gap: 12px; padding: 12px 16px; }
   .nav-mark { width: 120px; }
@@ -316,6 +325,8 @@ a { color: inherit; }
   .brews-head .lead { margin-inline-end: 0; }
   .walker { width: 92px; }
   .menu .desc { font-size: 15px; }
+  .menu li.photo { grid-template-columns: 68px minmax(0, 1fr); column-gap: 12px; }
+  .thumb { width: 68px; height: 68px; }
   .insta-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
 }
 
