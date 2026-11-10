@@ -14,7 +14,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { CATEGORIES, UNITS, DEFAULT_ITEMS } from './catalog.mjs';
+import { CATEGORIES, UNITS, DEFAULT_ITEMS, PUSH_TEXT, LANGS } from './catalog.mjs';
+import { loadVapid, sendPush, pushAllowed } from './push.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || path.join(ROOT, 'site-v2'));
@@ -24,8 +25,12 @@ const DB_FILE = path.join(DATA_DIR, 'einkauf.json');
 const PORT = Number(process.env.PORT) || 8080;
 const TEAM_PIN = String(process.env.TEAM_PIN || '').trim();
 
-const KEEP_DONE_DAYS = 30;
-const MAX_REQUESTS = 3000;
+const KEEP_DONE_DAYS = 800;          // Archiv + Monatsbericht: gut 2 Jahre
+const MAX_REQUESTS = 30000;
+const RECENT_DONE_DAYS = 3;          // so viel Gekauftes schickt /state mit
+const TOP_DAYS = 60, TOP_N = 8;      // „Am häufigsten“: die letzten 60 Tage
+const DAILY_HOUR = 20;               // tägliche Zusammenfassung, Wiener Zeit
+const MAX_SUBS = 200;
 const MAX_CUSTOM_ITEMS = 300;
 const MAX_JSON = 16 * 1024;
 const MAX_PHOTO = 3 * 1024 * 1024;
@@ -36,7 +41,7 @@ const DEFAULT_IDS = new Set(DEFAULT_ITEMS.map(i => i.id));
 // ---------------------------------------------------------------- Daten
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [] }; }
+function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '' }; }
 
 function loadDb() {
   try {
@@ -46,6 +51,9 @@ function loadDb() {
       custom: Array.isArray(raw.custom) ? raw.custom : [],
       edits: raw.edits && typeof raw.edits === 'object' ? raw.edits : {},
       requests: Array.isArray(raw.requests) ? raw.requests : [],
+      subs: Array.isArray(raw.subs) ? raw.subs : [],
+      lastDaily: typeof raw.lastDaily === 'string' ? raw.lastDaily : '',
+      origin: typeof raw.origin === 'string' ? raw.origin : '',
     };
   } catch (e) {
     if (e.code !== 'ENOENT') {
@@ -99,9 +107,22 @@ function allItems() {
 }
 const itemExists = id => DEFAULT_IDS.has(id) || db.custom.some(c => c.id === id);
 
-function state() {
-  return { v: db.v, items: allItems(), requests: db.requests, cats: CATEGORIES, units: UNITS };
+// Was am häufigsten auf die Liste kommt (zählt jedes neue Eintragen)
+function topItems() {
+  const since = Date.now() - TOP_DAYS * 864e5, n = new Map();
+  for (const r of db.requests) if (r.at > since) n.set(r.item, (n.get(r.item) || 0) + 1);
+  return [...n].filter(([id, c]) => c >= 2 && itemExists(id)).sort((a, b) => b[1] - a[1]).slice(0, TOP_N).map(([id]) => id);
 }
+
+// /state schickt nur Offenes + die letzten Tage, das Archiv kommt über /history
+function state() {
+  const since = Date.now() - RECENT_DONE_DAYS * 864e5;
+  return {
+    v: db.v, items: allItems(), cats: CATEGORIES, units: UNITS, top: topItems(),
+    requests: db.requests.filter(r => r.st === 'open' || r.doneAt > since).map(publicReq),
+  };
+}
+const publicReq = ({ dev, ...r }) => r;
 
 // ---------------------------------------------------------------- Prüfen
 const clean = (x, max) => String(x ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -119,10 +140,34 @@ const actions = {
     if (!itemExists(item)) throw new Bad('unknown item');
     const qty = qtyOf(b.qty); if (!qty) throw new Bad('bad qty');
     const unit = UNITS[b.unit] ? b.unit : null; if (!unit) throw new Bad('bad unit');
-    const note = clean(b.note, 200), by = clean(b.by, 40), now = Date.now();
+    const note = clean(b.note, 200), by = clean(b.by, 40), dev = clean(b.dev, 40), now = Date.now();
+    const urgent = !!b.urgent;
     const open = db.requests.find(r => r.st === 'open' && r.item === item);
-    if (open) Object.assign(open, { qty, unit, note, by, upd: now });
-    else db.requests.push({ id: newId('r'), item, qty, unit, note, by, at: now, upd: now, st: 'open' });
+    if (open) {
+      const nowUrgent = urgent && !open.urgent;
+      Object.assign(open, { qty, unit, note, by, upd: now, urgent, dev });
+      if (nowUrgent) queueNotify(open, true);
+    } else {
+      const r = { id: newId('r'), item, qty, unit, note, by, at: now, upd: now, st: 'open', urgent, dev };
+      db.requests.push(r);
+      queueNotify(r, urgent);
+    }
+  },
+  // „Nicht gefunden“: bleibt auf der Liste, nur markiert
+  notfound(b) {
+    const r = db.requests.find(x => x.id === b.id && x.st === 'open');
+    if (!r) throw new Bad('not found', 404);
+    if (b.on === false) delete r.nf;
+    else r.nf = { at: Date.now(), by: clean(b.by, 40) };
+  },
+  // Preis eines Einkaufs (Gesamtbetrag dieser Zeile, Euro), auch nachträglich
+  price(b) {
+    const r = db.requests.find(x => x.id === b.id && x.st === 'done');
+    if (!r) throw new Bad('not found', 404);
+    if (b.price === null || b.price === '') { delete r.price; return; }
+    const p = Math.round(Number(String(b.price).replace(',', '.')) * 100) / 100;
+    if (!Number.isFinite(p) || p < 0 || p > 99999) throw new Bad('bad price');
+    r.price = p;
   },
   remove(b) {
     const i = db.requests.findIndex(r => r.id === b.id && r.st === 'open');
@@ -134,6 +179,7 @@ const actions = {
     if (!r) throw new Bad('not found', 404);
     if (r.st !== 'open') return;
     Object.assign(r, { st: 'done', doneAt: Date.now(), doneBy: clean(b.by, 40) });
+    delete r.nf;
   },
   reopen(b) {
     const r = db.requests.find(x => x.id === b.id);
@@ -141,7 +187,28 @@ const actions = {
     if (r.st === 'open') return;
     // steht derselbe Artikel schon wieder offen drauf, nichts doppelt anlegen
     if (db.requests.some(x => x.st === 'open' && x.item === r.item)) { db.requests = db.requests.filter(x => x !== r); return; }
-    r.st = 'open'; r.upd = Date.now(); delete r.doneAt; delete r.doneBy;
+    r.st = 'open'; r.upd = Date.now(); delete r.doneAt; delete r.doneBy; delete r.price;
+  },
+  // Handy für Benachrichtigungen anmelden / Einstellungen ändern
+  subscribe(b, req) {
+    const s = b.sub || {};
+    const endpoint = String(s.endpoint || '');
+    if (endpoint.length > 1000 || !pushAllowed(endpoint)) throw new Bad('bad endpoint');
+    const p256dh = clean(s.keys?.p256dh, 200), auth = clean(s.keys?.auth, 60);
+    if (Buffer.from(p256dh, 'base64url').length !== 65 || Buffer.from(auth, 'base64url').length !== 16) throw new Bad('bad keys');
+    const rec = {
+      endpoint, keys: { p256dh, auth },
+      lang: LANGS.includes(b.lang) ? b.lang : 'de', each: b.each !== false, daily: !!b.daily,
+      dev: clean(b.dev, 40), name: clean(b.name, 40), at: Date.now(),
+    };
+    db.subs = db.subs.filter(x => x.endpoint !== endpoint && (!rec.dev || x.dev !== rec.dev));
+    if (db.subs.length >= MAX_SUBS) db.subs.shift();
+    db.subs.push(rec);
+    rememberOrigin(req);
+  },
+  unsubscribe(b) {
+    const endpoint = String(b.endpoint || ''), dev = clean(b.dev, 40);
+    db.subs = db.subs.filter(x => x.endpoint !== endpoint && (!dev || x.dev !== dev));
   },
   item(b) {
     const name = clean(b.name, 60); if (!name) throw new Bad('name missing');
@@ -173,6 +240,79 @@ function dropPhoto(url) {
   const f = url && /^[a-z0-9-]+\.jpg$/.test(path.basename(url)) ? path.join(PHOTO_DIR, path.basename(url)) : null;
   if (f) fsp.unlink(f).catch(() => {});
 }
+
+// ---------------------------------------------------------------- Benachrichtigungen
+const vapid = loadVapid(DATA_DIR);
+const pushSubject = () => process.env.VAPID_SUBJECT
+  || (db.origin.startsWith('https://') ? db.origin : 'mailto:nachschub@the-bakery.at');
+function rememberOrigin(req) {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
+  if (/^[a-z0-9.-]+(:\d+)?$/i.test(host)) db.origin = `${proto}://${host}`;
+}
+
+const nameFor = (id, lang) => {
+  const it = allItems().find(i => i.id === id);
+  const n = it ? (it.name[lang] || it.name.de || Object.values(it.name)[0]) : id;
+  return String(n).replace(/­/g, '');
+};
+const lineFor = (r, lang) => {
+  const q = String(r.qty).replace('.', lang === 'de' || lang === 'it' ? ',' : '.');
+  return `${nameFor(r.item, lang)} ${q} ${UNITS[r.unit]?.[lang] || r.unit}`;
+};
+
+async function pushTo(sub, payload, urgency) {
+  try {
+    const status = await sendPush(vapid, pushSubject(), sub, payload, { urgency });
+    if (status === 404 || status === 410) {           // Handy hat sich abgemeldet
+      db.subs = db.subs.filter(s => s.endpoint !== sub.endpoint); changed();
+    } else if (status >= 400) console.error('push failed', status, new URL(sub.endpoint).hostname);
+    return status;
+  } catch (e) { console.error('push error', e.message); return 0; }
+}
+
+// Neue Einträge kurz sammeln (45 s), dann eine Nachricht. Dringendes sofort.
+let pending = [], pendingTimer = null;
+function queueNotify(r, urgent) {
+  pending.push({ id: r.id, urgent });
+  if (urgent) setImmediate(flushNotify);
+  else if (!pendingTimer) pendingTimer = setTimeout(flushNotify, Number(process.env.PUSH_DELAY_MS) || 45e3);
+}
+function flushNotify() {
+  clearTimeout(pendingTimer); pendingTimer = null;
+  const batch = pending; pending = [];
+  const urgent = batch.some(b => b.urgent);
+  const reqs = [...new Set(batch.map(b => b.id))].map(id => db.requests.find(r => r.id === id && r.st === 'open')).filter(Boolean);
+  if (!reqs.length) return;
+  for (const s of db.subs.filter(x => x.each)) {
+    const mine = reqs.filter(r => !s.dev || r.dev !== s.dev);   // eigene Einträge nicht melden
+    if (!mine.length) continue;
+    const L = PUSH_TEXT[s.lang] || PUSH_TEXT.de;
+    const body = (urgent ? L.urgent : L.added).replace('{names}', mine.map(r => lineFor(r, s.lang)).join(', '));
+    pushTo(s, { title: L.title, body, url: '/einkauf/#liste', tag: 'einkauf-neu' }, urgent ? 'high' : 'normal');
+  }
+}
+
+// Tägliche Zusammenfassung um 20 Uhr Wiener Zeit
+const viennaNow = () => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
+};
+function dailyCheck() {
+  const { day, hour } = viennaNow();
+  if (hour < DAILY_HOUR || db.lastDaily === day) return;
+  db.lastDaily = day; changed();
+  const open = db.requests.filter(r => r.st === 'open');
+  if (!open.length) return;
+  for (const s of db.subs.filter(x => x.daily)) {
+    const L = PUSH_TEXT[s.lang] || PUSH_TEXT.de;
+    const names = open.slice(0, 12).map(r => lineFor(r, s.lang)).join(', ') + (open.length > 12 ? ' …' : '');
+    pushTo(s, { title: L.title, body: L.daily.replace('{n}', open.length).replace('{names}', names), url: '/einkauf/#liste', tag: 'einkauf-tag' });
+  }
+}
+setInterval(dailyCheck, 60e3).unref();
 
 // ---------------------------------------------------------------- HTTP-Helfer
 const SEC_HEADERS = {
@@ -245,6 +385,25 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
+  // Archiv / Monatsbericht: gekaufte Einträge in einem Zeitraum (max. 2 Monate)
+  if (p === '/history' && req.method === 'GET') {
+    const from = Number(url.searchParams.get('from')), to = Number(url.searchParams.get('to'));
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 63 * 864e5) throw new Bad('bad range');
+    return json(res, 200, { requests: db.requests.filter(r => r.st === 'done' && r.doneAt >= from && r.doneAt < to).map(publicReq) });
+  }
+
+  if (p === '/push/key' && req.method === 'GET') return json(res, 200, { key: vapid.publicKey });
+
+  if (p === '/push/test' && req.method === 'POST') {
+    let body;
+    try { body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}'); } catch { throw new Bad('bad json'); }
+    const s = db.subs.find(x => x.endpoint === body?.endpoint);
+    if (!s) throw new Bad('not subscribed', 404);
+    const L = PUSH_TEXT[s.lang] || PUSH_TEXT.de;
+    const status = await pushTo(s, { title: L.title, body: L.test, url: '/einkauf/', tag: 'einkauf-test' }, 'high');
+    return json(res, 200, { status });
+  }
+
   const um = p.match(/^\/photo\/([a-z0-9-]{1,40})$/);
   if (um && req.method === 'PUT') {
     const id = um[1];
@@ -260,13 +419,13 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
-  const am = p.match(/^\/(need|remove|done|reopen|item|edit)$/);
+  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe)$/);
   if (am && req.method === 'POST') {
     if (!String(req.headers['content-type'] || '').includes('application/json')) throw new Bad('json only', 415);
     let body;
     try { body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}'); } catch (e) { if (e instanceof Bad) throw e; throw new Bad('bad json'); }
     if (!body || typeof body !== 'object') throw new Bad('bad json');
-    const extra = actions[am[1]](body);
+    const extra = actions[am[1]](body, req);
     changed();
     return json(res, 200, { ...state(), ...(extra || {}) });
   }

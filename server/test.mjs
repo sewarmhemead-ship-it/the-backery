@@ -131,6 +131,55 @@ test('data survives restart', async () => {
   assert.ok(s.items.find(i => i.name.de === 'Hafermilch'));
 });
 
+test('urgent, not found, price, history, most ordered', async () => {
+  const post = (p, body) => api(p, { method: 'POST', body }).then(r => r.json());
+  let s = await post('/need', { item: 'reis', qty: 5, unit: 'kg', by: 'Ali', urgent: true, dev: 'phone-a' });
+  let r = s.requests.find(x => x.item === 'reis' && x.st === 'open');
+  assert.equal(r.urgent, true);
+  assert.equal(r.dev, undefined, 'device id stays on the server');
+
+  s = await post('/notfound', { id: r.id, by: 'Chef' });
+  assert.equal(s.requests.find(x => x.id === r.id).nf.by, 'Chef');
+  s = await post('/notfound', { id: r.id, on: false });
+  assert.equal(s.requests.find(x => x.id === r.id).nf, undefined);
+
+  assert.equal((await api('/price', { method: 'POST', body: { id: r.id, price: 3 } })).status, 404, 'price only after buying');
+  await post('/done', { id: r.id, by: 'Chef' });
+  s = await post('/price', { id: r.id, price: '12,40' });
+  assert.equal(s.requests.find(x => x.id === r.id).price, 12.4);
+  assert.equal((await api('/price', { method: 'POST', body: { id: r.id, price: -1 } })).status, 400);
+
+  const now = Date.now();
+  const h = await (await api(`/history?from=${now - 864e5}&to=${now + 1000}`)).json();
+  assert.ok(h.requests.find(x => x.id === r.id && x.price === 12.4));
+  assert.equal((await api(`/history?from=0&to=${now}`)).status, 400, 'range too long');
+
+  // zweimal eingetragen → taucht bei „Am häufigsten“ auf
+  s = await post('/need', { item: 'reis', qty: 2, unit: 'kg' });
+  assert.ok(s.top.includes('reis'));
+});
+
+test('push: subscribe only to real push services', async () => {
+  const key = await (await api('/push/key')).json();
+  assert.equal(Buffer.from(key.key, 'base64url').length, 65);
+  const keys = { p256dh: Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 1)]).toString('base64url'), auth: Buffer.alloc(16, 2).toString('base64url') };
+  for (const endpoint of ['http://127.0.0.1:1/x', 'https://evil.example/push', 'https://fcm.googleapis.com.evil.example/x'])
+    assert.equal((await api('/subscribe', { method: 'POST', body: { sub: { endpoint, keys } } })).status, 400, endpoint);
+  assert.equal((await api('/subscribe', { method: 'POST', body: { sub: { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys }, lang: 'ar', daily: true } })).status, 200);
+  assert.equal((await api('/unsubscribe', { method: 'POST', body: { endpoint: 'https://fcm.googleapis.com/fcm/send/abc' } })).status, 200);
+});
+
+test('push encryption matches RFC 8291 example', async () => {
+  const crypto = await import('node:crypto');
+  const { encrypt } = await import('./push.mjs');
+  const ecdh = crypto.createECDH('prime256v1');
+  ecdh.setPrivateKey(Buffer.from('yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', 'base64url'));
+  const out = encrypt('When I grow up, I want to be a watermelon',
+    'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', 'BTBZMqHH6r4Tts7J_aSIgg',
+    { salt: Buffer.from('DGv6ra1nlYgDCS1FRnbzlw', 'base64url'), ecdh });
+  assert.equal(out.toString('base64url'), 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN');
+});
+
 test('PIN brute force is slowed down', async () => {
   let last;
   for (let i = 0; i < 10; i++) last = (await api('/state', { pin: 'x' + i })).status;

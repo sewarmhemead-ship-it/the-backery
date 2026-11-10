@@ -38,7 +38,10 @@
     <div class="intro">
       <h1 class="display" id="need-h" data-t="needTitle">Was fehlt?</h1>
       <p class="lead" data-t="needLead"></p>
-      <button class="who" type="button" id="who"></button>
+      <div class="pills">
+        <button class="who" type="button" id="who"></button>
+        <button class="who" type="button" id="bell" hidden></button>
+      </div>
     </div>
     <div class="toolbar">
       <label class="search">
@@ -70,6 +73,19 @@
     <div id="list" class="list"></div>
     <div id="bought" class="bought"></div>
   </section>
+
+  <!-- 3. Verlauf: Monatsbericht + Archiv -->
+  <section class="view" id="view-history" aria-labelledby="hist-h" hidden>
+    <div class="intro">
+      <h1 class="display" id="hist-h" data-t="histTitle">Verlauf</h1>
+      <div class="month-nav">
+        <button type="button" class="step small" id="m-prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span class="sr" data-t="prevMonth"></span></button>
+        <b id="m-label"></b>
+        <button type="button" class="step small" id="m-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sr" data-t="nextMonth"></span></button>
+      </div>
+    </div>
+    <div id="history" class="history"></div>
+  </section>
 </main>
 
 <nav class="tabs" aria-label="Ansicht">
@@ -81,6 +97,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1.2 1.2L6.8 5M3.5 12l1.2 1.2 2.1-2.2M3.5 18l1.2 1.2 2.1-2.2"/></svg>
     <span data-t="tabList">Einkaufsliste</span>
     <b class="badge" id="badge" hidden></b>
+  </button>
+  <button type="button" data-view="history">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    <span data-t="tabHistory">Verlauf</span>
   </button>
 </nav>
 

@@ -39,6 +39,14 @@ export const UNITS = {
   sack: { de: 'Sack', en: 'sacks', it: 'sacchi', ar: 'كيس' },
 };
 
+// Texte der Handy-Benachrichtigungen
+export const PUSH_TEXT = {
+  de: { title: 'THE BAKERY · Nachschub', added: 'Neu auf der Liste: {names}', urgent: 'Dringend: {names}', daily: '{n} Sachen fehlen: {names}', test: 'Benachrichtigungen funktionieren ✓' },
+  en: { title: 'THE BAKERY · Restock', added: 'New on the list: {names}', urgent: 'Urgent: {names}', daily: '{n} things missing: {names}', test: 'Notifications are working ✓' },
+  it: { title: 'THE BAKERY · Rifornimento', added: 'Nuovo in lista: {names}', urgent: 'Urgente: {names}', daily: 'Mancano {n} cose: {names}', test: 'Le notifiche funzionano ✓' },
+  ar: { title: 'THE BAKERY · النواقص', added: 'انضاف للقائمة: {names}', urgent: 'مستعجل: {names}', daily: 'ناقص {n} أغراض: {names}', test: 'التنبيهات شغالة ✓' },
+};
+
 const I = (id, cat, unit, de, en, it, ar, img = id) => ({ id, cat, unit, img, name: { de, en, it, ar } });
 
 export const DEFAULT_ITEMS = [

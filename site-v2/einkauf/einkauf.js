@@ -17,9 +17,16 @@
 
   let S = null;                 // Zustand vom Server
   let lang = pickLang();
-  let view = location.hash === '#liste' ? 'list' : 'need';
+  const HASH = { list: '#liste', history: '#verlauf' };
+  let view = location.hash === '#liste' ? 'list' : location.hash === '#verlauf' ? 'history' : 'need';
   let pin = store.get('tb-ek-pin') || '';
   let me = store.get('tb-ek-name') || '';
+  // Geräte-Kennung: damit man nicht über die eigenen Einträge benachrichtigt wird
+  let dev = store.get('tb-ek-dev');
+  if (!dev) { dev = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('tb-ek-dev', dev); }
+  let month = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })();
+  const histCache = new Map();  // "2026-10" → { v, requests }
+  let pushKey = null, pushSub = null;
   let query = '';
   let showHidden = false;
   let pinShown = false;
@@ -53,6 +60,11 @@
     eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     eyeOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
     user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
+    search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 8.5l5 5M13 8.5l-5 5"/></svg>',
+    euro: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6.5A7 7 0 1 0 17 17.5M4 10h9M4 14h9"/></svg>',
+    star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   };
 
   function pickLang() {
@@ -74,7 +86,9 @@
   const itemById = id => S.items.find(i => i.id === id);
   const openRequests = () => S.requests.filter(r => r.st === 'open');
   const openMap = () => new Map(openRequests().map(r => [r.item, r]));
-  const plain = s => String(s).replace(/­/g, '');      // Trennstellen raus
+  const plain = s => String(s).replace(/­/g, '');   // Trennstellen raus
+  const money = p => new Intl.NumberFormat(LOCALE[lang], { style: 'currency', currency: 'EUR' }).format(p);
+  const byUrgent = (a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || a.at - b.at;
   const norm = s => plain(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss');
 
   function when(ts) {
@@ -123,6 +137,7 @@
     renderStatic();
     renderNeed();
     renderList();
+    if (view === 'history') renderHistory();
   }
 
   function renderStatic() {
@@ -137,6 +152,8 @@
     });
     $('#view-need').hidden = view !== 'need';
     $('#view-list').hidden = view !== 'list';
+    $('#view-history').hidden = view !== 'history';
+    renderBell();
     const n = openRequests().length;
     const badge = $('#badge');
     badge.hidden = n === 0; badge.textContent = n;
@@ -152,6 +169,17 @@
     const chips = $('#chips'); chips.replaceChildren();
     const cats = $('#cats'); cats.replaceChildren();
     let shown = 0;
+
+    // „Am häufigsten“ oben, solange nicht gesucht wird
+    const top = (S.top || []).map(itemById).filter(i => i && !i.hidden);
+    if (!q && top.length) {
+      chips.append(h('button', { type: 'button', class: 'chip', 'data-cat': 'top',
+        onclick: () => document.getElementById('cat-top')?.scrollIntoView({ behavior: 'smooth' }) },
+      h('span', { class: 'chip-ico', html: ICON.star }), t('topTitle')));
+      cats.append(h('section', { class: 'cat top-items', id: 'cat-top', 'data-cat': 'top' },
+        h('h2', { class: 'cat-h' }, h('span', { class: 'chip-ico', html: ICON.star }), t('topTitle')),
+        h('div', { class: 'grid' }, top.map(i => card(i, open.get(i.id))))));
+    }
 
     for (const c of S.cats) {
       const list = visible.filter(i => i.cat === c.id && match(i));
@@ -181,8 +209,8 @@
     const full = nameOf(it);
     const m = full.match(/^(.+?)\s*\((.+)\)\s*$/) || full.match(/^(.+?)\s+(\/\s.+)$/);
     return h('button', {
-      type: 'button', class: 'card' + (r ? ' on' : '') + (it.hidden ? ' is-hidden' : ''), 'data-cat': it.cat,
-      'aria-label': nameOf(it) + (r ? ` · ${t('already')}: ${qtyText(r)}` : ''),
+      type: 'button', class: 'card' + (r ? ' on' : '') + (r?.urgent ? ' urgent' : '') + (it.hidden ? ' is-hidden' : ''), 'data-cat': it.cat,
+      'aria-label': nameOf(it) + (r ? ` · ${t('already')}: ${qtyText(r)}${r.urgent ? ` · ${t('urgent')}` : ''}` : ''),
       onclick: () => openItem(it.id),
     },
     pic(it),
@@ -203,8 +231,16 @@
         h('h2', null, t('empty')), h('p', null, t('emptyLead'))));
     } else {
       list.append(h('p', { class: 'lead list-hint' }, t('listHint')));
+      // Dringendes ganz oben, eigene Gruppe in Rot
+      const urgent = open.filter(r => r.urgent && itemById(r.item)).sort((a, b) => a.at - b.at);
+      if (urgent.length) {
+        list.append(h('section', { class: 'group urgent-group' },
+          h('h2', { class: 'group-h' }, h('span', { class: 'chip-ico', html: ICON.alert }), t('urgent')),
+          h('div', { class: 'rows' }, urgent.map(r => listRow(r, itemById(r.item))))));
+      }
       for (const c of S.cats) {
-        const rows = open.filter(r => itemById(r.item)?.cat === c.id).sort((a, b) => a.at - b.at);
+        // „nicht gefunden“ ans Ende der Gruppe
+        const rows = open.filter(r => !r.urgent && itemById(r.item)?.cat === c.id).sort((a, b) => (a.nf ? 1 : 0) - (b.nf ? 1 : 0) || a.at - b.at);
         if (!rows.length) continue;
         list.append(h('section', { class: 'group', 'data-cat': c.id },
           h('h2', { class: 'group-h' }, h('i'), c.name[lang] || c.name.de),
@@ -222,19 +258,27 @@
         return h('div', { class: 'done-row' }, pic(it),
           h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
             h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), when(r.doneAt)].join(' · '))),
-          h('button', { type: 'button', onclick: () => reopen(r, it) }, t('backOnList')));
+          h('div', { class: 'done-btns' },
+            priceBtn(r, it),
+            h('button', { type: 'button', onclick: () => reopen(r, it) }, t('backOnList'))));
       }));
     }
   }
 
+  function priceBtn(r, it) {
+    return h('button', { type: 'button', class: 'price-btn' + (r.price != null ? ' has' : ''), onclick: () => openPrice(r, it) },
+      r.price != null ? money(r.price) : t('addPrice'));
+  }
+
   function listRow(r, it) {
-    const row = h('div', { class: 'row', 'data-cat': it.cat });
+    const row = h('div', { class: 'row' + (r.urgent ? ' urgent' : '') + (r.nf ? ' nf' : ''), 'data-cat': it.cat });
     row.append(
       h('button', { type: 'button', class: 'row-main', onclick: () => openItem(it.id) },
         pic(it),
         h('span', { class: 'row-txt' },
           h('span', { class: 'row-nm' }, nameOf(it)),
           deName(it) ? h('span', { class: 'row-de' }, deName(it)) : null,
+          r.nf ? h('span', { class: 'row-nf' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
           r.note ? h('span', { class: 'row-note' }, r.note) : null,
           h('span', { class: 'row-meta' }, [r.by, when(r.upd || r.at)].filter(Boolean).join(' · '))),
         h('span', { class: 'row-qty' }, h('b', null, num(r.qty)), h('span', null, unitOf(r.unit)))),
@@ -247,8 +291,38 @@
     row.classList.add('leaving');
     try {
       await post('/done', { id: r.id, by: me });
-      toast(t('boughtToast', { name: nameOf(it) }), t('undo'), () => post('/reopen', { id: r.id, by: me }).catch(() => toast(t('error'))));
+      toast(t('boughtToast', { name: nameOf(it) }),
+        t('addPrice'), () => openPrice({ ...r, st: 'done' }, it),
+        t('undo'), () => post('/reopen', { id: r.id, by: me }).catch(() => toast(t('error'))));
     } catch { row.classList.remove('leaving'); toast(t('error')); }
+  }
+
+  // Preis nachtragen (Gesamtbetrag dieses Einkaufs)
+  function openPrice(r, it) {
+    const inp = h('input', { class: 'qty-in price-in', id: 'f-price', type: 'text', inputmode: 'decimal', autocomplete: 'off',
+      value: r.price != null ? num(r.price) : '', placeholder: '0,00', 'aria-label': t('priceTitle') });
+    const err = h('p', { class: 'err', role: 'alert' });
+    async function save(clear) {
+      const v = clear ? null : parseNum(inp.value);
+      if (!clear && !(v >= 0)) { err.textContent = t('error'); inp.focus(); return; }
+      try {
+        await post('/price', { id: r.id, price: v });
+        histCache.clear();
+        closeSheet(); toast(t('saved'));
+        if (view === 'history') renderHistory(true);
+      } catch { err.textContent = t('error'); }
+    }
+    openSheet(
+      h('div', { class: 's-head' }, pic(it), h('div', null, h('h2', { id: 'sheet-h' }, nameOf(it)), h('p', null, qtyText(r)))),
+      h('label', { class: 'lbl', for: 'f-price' }, t('priceTitle')),
+      h('div', { class: 'price-box' }, inp, h('b', { 'aria-hidden': 'true' }, '€')),
+      h('p', { class: 's-lead' }, t('priceLead', { qty: qtyText(r) })),
+      err,
+      h('div', { class: 'actions' },
+        h('button', { type: 'button', class: 'btn primary', onclick: () => save(false) }, t('save')),
+        r.price != null ? h('button', { type: 'button', class: 'btn ghost full', onclick: () => save(true) }, t('removePrice')) : null));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(false); });
+    setTimeout(() => inp.focus(), 320);
   }
   async function reopen(r, it) {
     try { await post('/reopen', { id: r.id, by: me }); toast(t('addedToast', { name: nameOf(it) })); } catch { toast(t('error')); }
@@ -258,15 +332,18 @@
     const d = new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'short', day: 'numeric', month: 'numeric' }).format(new Date());
     // WhatsApp: *fett* für Überschriften, _kursiv_ für den deutschen Namen
     const lines = [`*THE BAKERY · ${t('shareTitle')}*`, d];
+    const line = r => {
+      const it = itemById(r.item);
+      lines.push(`• ${nameOf(it)}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}${r.nf ? ` (${t('nfTag')})` : ''}`);
+      if (deName(it)) lines.push(`   _${deName(it)}_`);
+    };
+    const urgent = openRequests().filter(r => r.urgent && itemById(r.item));
+    if (urgent.length) { lines.push('', `*❗ ${t('urgent')}*`); urgent.forEach(line); }
     for (const c of S.cats) {
-      const rows = openRequests().filter(r => itemById(r.item)?.cat === c.id);
+      const rows = openRequests().filter(r => !r.urgent && itemById(r.item)?.cat === c.id);
       if (!rows.length) continue;
       lines.push('', `*${c.name[lang] || c.name.de}*`);
-      for (const r of rows) {
-        const it = itemById(r.item);
-        lines.push(`• ${nameOf(it)}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}`);
-        if (deName(it)) lines.push(`   _${deName(it)}_`);
-      }
+      rows.forEach(line);
     }
     lines.push('', `${t('shareOpen')}: ${location.origin}/einkauf/#liste`);
     return plain(lines.join('\n'));
@@ -339,19 +416,30 @@
     qtyIn.addEventListener('focus', () => qtyIn.select());
     const note = h('input', { class: 'field', id: 'f-note', maxlength: 200, placeholder: t('notePh'), value: r?.note || '' });
     const err = h('p', { class: 'err', role: 'alert' });
+    let urgent = !!r?.urgent;
+    const urgentBtn = h('button', { type: 'button', class: 'urgent-btn', 'aria-pressed': String(urgent),
+      onclick: () => { urgent = !urgent; urgentBtn.setAttribute('aria-pressed', String(urgent)); } },
+    h('span', { html: ICON.alert }), t('urgentMark'));
 
     async function save() {
       const v = parseQty();
       if (!(v > 0)) { err.textContent = t('badQty'); qtyIn.classList.remove('shake'); void qtyIn.offsetWidth; qtyIn.classList.add('shake'); qtyIn.focus(); return; }
       takeName();
       try {
-        await post('/need', { item: id, qty: v, unit, note: note.value, by: me });
+        await post('/need', { item: id, qty: v, unit, note: note.value, by: me, urgent, dev });
         closeSheet();
-        toast(t(r ? 'updatedToast' : 'addedToast', { name: nameOf(it) }));
+        toast(t(urgent && !r?.urgent ? 'urgentToast' : r ? 'updatedToast' : 'addedToast', { name: nameOf(it) }));
       } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
     }
+    async function notFound() {
+      try {
+        await post('/notfound', { id: r.id, by: me, on: !r.nf });
+        closeSheet();
+        toast(r.nf ? t('saved') : t('nfToast', { name: nameOf(it) }));
+      } catch { err.textContent = t('error'); }
+    }
     async function remove() {
-      try { await post('/remove', { id: r.id, by: me }); closeSheet(); toast(t('removedToast', { name: nameOf(it) }), t('undo'), () => post('/need', { item: id, qty: r.qty, unit: r.unit, note: r.note, by: r.by }).catch(() => toast(t('error')))); }
+      try { await post('/remove', { id: r.id, by: me }); closeSheet(); toast(t('removedToast', { name: nameOf(it) }), t('undo'), () => post('/need', { item: id, qty: r.qty, unit: r.unit, note: r.note, by: r.by, urgent: r.urgent, dev }).catch(() => toast(t('error')))); }
       catch { err.textContent = t('error'); }
     }
 
@@ -359,17 +447,21 @@
       h('div', { class: 's-head' }, pic(it), h('div', null,
         h('h2', { id: 'sheet-h' }, nameOf(it)), deName(it) ? h('p', null, deName(it)) : null)),
       r ? h('p', { class: 'already' }, `${t('already')}: `, h('b', null, qtyText(r)), [r.by, when(r.upd || r.at)].filter(Boolean).map(x => ` · ${x}`).join('')) : null,
+      r?.nf ? h('p', { class: 'already nf-note' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
       h('label', { class: 'lbl', for: 'f-qty' }, t('howMuch')),
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'step', 'aria-label': '−', html: ICON.minus, onclick: () => setQty(Math.max(stepOf(unit), parseQty() - stepOf(unit))) }),
         h('div', { class: 'qty-box' }, qtyIn, unitSel),
         h('button', { type: 'button', class: 'step', 'aria-label': '+', html: ICON.plus, onclick: () => setQty(parseQty() + stepOf(unit)) })),
       quick,
+      urgentBtn,
       h('label', { class: 'lbl', for: 'f-note' }, t('note')), note,
       nameField(),
       err,
       h('div', { class: 'actions' },
         h('button', { type: 'button', class: 'btn primary', onclick: save }, r ? t('update') : t('add')),
+        r ? h('button', { type: 'button', class: 'btn ghost full nf-btn', onclick: notFound },
+          h('span', { html: ICON.search }), r.nf ? t('notFoundUndo') : t('notFoundBtn')) : null,
         r ? h('button', { type: 'button', class: 'btn ghost full', onclick: remove }, t('removeFromList')) : null),
       h('div', { class: 'admin' },
         h('button', { type: 'button', onclick: () => pickPhoto(it) }, h('span', { html: ICON.cam }), t('takePhoto')),
@@ -486,23 +578,193 @@
 
   // ---------------------------------------------------------- Hinweis
   let toastTimer;
-  function toast(msg, actionLabel, action) {
+  // toast(text, [Knopf1, Aktion1, Knopf2, Aktion2 …])
+  function toast(msg, ...acts) {
     const el = $('#toast');
     clearTimeout(toastTimer);
     el.replaceChildren(h('span', null, msg));
-    if (actionLabel) el.append(h('button', { type: 'button', onclick: () => { el.hidden = true; action(); } }, actionLabel));
+    for (let i = 0; i + 1 < acts.length; i += 2) {
+      const fn = acts[i + 1];
+      el.append(h('button', { type: 'button', onclick: () => { el.hidden = true; fn(); } }, acts[i]));
+    }
     el.hidden = false;
     el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
-    toastTimer = setTimeout(() => { el.hidden = true; }, actionLabel ? 6000 : 2600);
+    toastTimer = setTimeout(() => { el.hidden = true; }, acts.length ? 7000 : 2600);
+  }
+
+  // ---------------------------------------------------------- Verlauf
+  const monthKey = () => `${month.y}-${String(month.m + 1).padStart(2, '0')}`;
+  async function renderHistory(force) {
+    const label = new Intl.DateTimeFormat(LOCALE[lang], { month: 'long', year: 'numeric' }).format(new Date(month.y, month.m, 1));
+    $('#m-label').textContent = label;
+    const now = new Date();
+    $('#m-next').disabled = month.y > now.getFullYear() || (month.y === now.getFullYear() && month.m >= now.getMonth());
+    const key = monthKey();
+    let data = histCache.get(key);
+    // Laufender Monat: neu laden, wenn sich die Liste geändert hat
+    if (force || !data || (data.v !== S.v && $('#m-next').disabled)) {
+      try {
+        const from = new Date(month.y, month.m, 1).getTime(), to = new Date(month.y, month.m + 1, 1).getTime();
+        const res = await call('GET', `/history?from=${from}&to=${to}`);
+        data = { v: S.v, requests: res.requests };
+        histCache.set(key, data);
+      } catch { return; }
+      if (monthKey() !== key) return;                 // inzwischen weitergeblättert
+    }
+    drawHistory(data.requests.filter(r => itemById(r.item)));
+  }
+
+  function drawHistory(reqs) {
+    const box = $('#history'); box.replaceChildren();
+    if (!reqs.length) { box.append(h('p', { class: 'none hist-empty' }, t('noHistory'))); return; }
+
+    const total = reqs.reduce((s, r) => s + (r.price || 0), 0);
+    const noPrice = reqs.filter(r => r.price == null).length;
+    const per = new Map();
+    for (const r of reqs) {
+      const p = per.get(r.item) || { item: r.item, n: 0, spent: 0, qty: 0, units: new Set(), times: [] };
+      p.n += 1; p.spent += r.price || 0; p.qty += r.qty; p.units.add(r.unit); p.times.push(r.doneAt);
+      per.set(r.item, p);
+    }
+    const stats = [...per.values()];
+
+    box.append(h('div', { class: 'tiles' },
+      h('div', { class: 'tile-s' }, h('span', null, t('spent')), h('b', null, money(total))),
+      h('div', { class: 'tile-s' }, h('span', null, t('purchases')), h('b', null, num(reqs.length))),
+      h('div', { class: 'tile-s' }, h('span', null, t('itemsN')), h('b', null, num(per.size)))));
+    if (noPrice) box.append(h('p', { class: 'hint' }, t('noPrice', { n: noPrice })));
+
+    const statRow = (p, right) => {
+      const it = itemById(p.item);
+      const ts = p.times.sort((a, b) => a - b);
+      const every = ts.length > 1 ? Math.round((ts[ts.length - 1] - ts[0]) / 864e5 / (ts.length - 1)) : 0;
+      const sum = p.units.size === 1 ? `${num(p.qty)} ${unitOf([...p.units][0])}` : '';
+      return h('div', { class: 'stat-row' }, pic(it),
+        h('div', null, h('b', null, nameOf(it)),
+          h('span', null, [t(p.n === 1 ? 'timesN1' : p.n === 2 ? 'timesN2' : 'timesN', { n: p.n }), sum, every >= 1 ? t('everyDays', { n: every }) : ''].filter(Boolean).join(' · '))),
+        h('strong', null, right));
+    };
+    box.append(h('h2', { class: 'h-sec' }, t('reportTop')),
+      h('div', { class: 'stat-list' }, stats.sort((a, b) => b.n - a.n || b.spent - a.spent).slice(0, 10)
+        .map(p => statRow(p, `${num(p.n)}×`))));
+    const costly = stats.filter(p => p.spent > 0).sort((a, b) => b.spent - a.spent).slice(0, 10);
+    if (costly.length) box.append(h('h2', { class: 'h-sec' }, t('reportCost')),
+      h('div', { class: 'stat-list' }, costly.map(p => statRow(p, money(p.spent)))));
+
+    // Archiv: Tag für Tag, neueste zuerst
+    box.append(h('h2', { class: 'h-sec' }, t('archive')));
+    const days = new Map();
+    for (const r of [...reqs].sort((a, b) => b.doneAt - a.doneAt)) {
+      const d = new Date(r.doneAt); const k = d.toDateString();
+      if (!days.has(k)) days.set(k, { d, rows: [] });
+      days.get(k).rows.push(r);
+    }
+    for (const { d, rows } of days.values()) {
+      const sum = rows.reduce((s, r) => s + (r.price || 0), 0);
+      box.append(h('section', { class: 'day' },
+        h('h3', null, new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
+          sum ? h('span', null, money(sum)) : null),
+        rows.map(r => {
+          const it = itemById(r.item);
+          const time = new Intl.DateTimeFormat(LOCALE[lang], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(r.doneAt));
+          return h('div', { class: 'done-row arch' }, pic(it),
+            h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
+              h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), time].join(' · '))),
+            priceBtn(r, it));
+        })));
+    }
+  }
+
+  // ---------------------------------------------------------- Benachrichtigungen
+  const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const isIos = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let swReg = null;
+  async function initPush() {
+    if (!pushOk()) return;
+    try {
+      swReg = await navigator.serviceWorker.register('sw.js', { scope: './' });
+      pushSub = await swReg.pushManager.getSubscription();
+      navigator.serviceWorker.addEventListener('message', e => { if (e.data?.open === 'list') setView('list'); });
+    } catch { /* ohne Benachrichtigungen weiter */ }
+    renderBell();
+  }
+  async function loadPushKey() {
+    if (pushKey || !pushOk() || !S) return;
+    try { pushKey = (await call('GET', '/push/key')).key; } catch { /* später nochmal */ }
+  }
+  function renderBell() {
+    const b = $('#bell');
+    b.hidden = !(pushOk() || isIos);
+    b.classList.toggle('on', !!pushSub);
+    b.replaceChildren(h('span', { html: ICON.bell }), t('notif'));
+    if (pushSub) b.append(' ', h('u', null, t('notifOnTag')));
+  }
+  const keyBytes = k => { const s = atob(k.replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+  const prefs = () => { try { return JSON.parse(store.get('tb-ek-push') || '{}'); } catch { return {}; } };
+
+  function openNotif() {
+    if (!pushOk()) {
+      openSheet(h('h2', { class: 's-title', id: 'sheet-h' }, t('notif')),
+        h('p', { class: 's-lead' }, isIos && !standalone ? t('notifIos') : t('notifUnsupported')));
+      return;
+    }
+    const p = prefs();
+    let each = p.each !== false, daily = !!p.daily;
+    const err = h('p', { class: 'err', role: 'alert' });
+    const sw = (label, get, set) => {
+      const b = h('button', { type: 'button', class: 'switch', role: 'switch', 'aria-checked': String(get()),
+        onclick: () => { set(!get()); b.setAttribute('aria-checked', String(get())); } }, h('i'), h('span', null, label));
+      return b;
+    };
+    async function enable() {
+      err.textContent = '';
+      // Erlaubnis zuerst fragen, solange der Tipp noch „frisch“ ist (Safari)
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (perm !== 'granted') { err.textContent = t('notifDenied'); return; }
+      try {
+        if (!swReg) swReg = await navigator.serviceWorker.register('sw.js', { scope: './' });
+        await navigator.serviceWorker.ready;
+        if (!pushKey) await loadPushKey();
+        pushSub = await swReg.pushManager.getSubscription()
+          || await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(pushKey) });
+        await post('/subscribe', { sub: pushSub.toJSON(), lang, each, daily, dev, name: me });
+        store.set('tb-ek-push', JSON.stringify({ each, daily }));
+        closeSheet(); toast(t('saved')); renderBell();
+      } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+    }
+    async function disable() {
+      try {
+        if (pushSub) { await post('/unsubscribe', { endpoint: pushSub.endpoint, dev }); await pushSub.unsubscribe(); }
+        pushSub = null; closeSheet(); toast(t('saved')); renderBell();
+      } catch { err.textContent = t('error'); }
+    }
+    async function test() {
+      try { await post('/push/test', { endpoint: pushSub.endpoint }); toast(t('testSent')); } catch { err.textContent = t('error'); }
+    }
+    openSheet(
+      h('h2', { class: 's-title', id: 'sheet-h' }, t('notif')),
+      h('p', { class: 's-lead' }, t('notifLead')),
+      h('div', { class: 'switches' }, sw(t('notifEach'), () => each, v => { each = v; }), sw(t('notifDaily'), () => daily, v => { daily = v; })),
+      Notification.permission === 'denied' ? h('p', { class: 'err' }, t('notifDenied')) : null,
+      err,
+      h('div', { class: 'actions' },
+        h('button', { type: 'button', class: 'btn primary', onclick: enable }, pushSub ? t('save') : t('notifEnable')),
+        pushSub ? h('button', { type: 'button', class: 'btn ghost full', onclick: test }, t('notifTest')) : null,
+        pushSub ? h('button', { type: 'button', class: 'btn ghost full', onclick: disable }, t('notifOff')) : null));
   }
 
   // ---------------------------------------------------------- Start
   function setView(v) {
     view = v;
-    history.replaceState(null, '', v === 'list' ? '#liste' : location.pathname + location.search);
+    history.replaceState(null, '', HASH[v] || location.pathname + location.search);
     render();
     window.scrollTo({ top: 0 });
   }
+  $('#m-prev').addEventListener('click', () => { month = month.m ? { y: month.y, m: month.m - 1 } : { y: month.y - 1, m: 11 }; renderHistory(); });
+  $('#m-next').addEventListener('click', () => { month = month.m < 11 ? { y: month.y, m: month.m + 1 } : { y: month.y + 1, m: 0 }; renderHistory(); });
+  $('#bell').addEventListener('click', async () => { await loadPushKey(); openNotif(); });
+  initPush();
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
   document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => {
     lang = b.dataset.lang; store.set('tb-ek-lang', lang); render();
