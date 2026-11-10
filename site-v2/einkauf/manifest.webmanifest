@@ -1,0 +1,12 @@
+{
+  "name": "THE BAKERY · Nachschub",
+  "short_name": "Nachschub",
+  "start_url": "/einkauf/",
+  "scope": "/einkauf/",
+  "display": "standalone",
+  "background_color": "#F6EEE3",
+  "theme_color": "#C0E4ED",
+  "icons": [
+    { "src": "/assets/img/icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
