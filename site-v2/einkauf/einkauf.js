@@ -256,17 +256,19 @@
 
   function shareText() {
     const d = new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'short', day: 'numeric', month: 'numeric' }).format(new Date());
-    const lines = [`THE BAKERY · ${t('shareTitle')} · ${d}`];
+    // WhatsApp: *fett* für Überschriften, _kursiv_ für den deutschen Namen
+    const lines = [`*THE BAKERY · ${t('shareTitle')}*`, d];
     for (const c of S.cats) {
       const rows = openRequests().filter(r => itemById(r.item)?.cat === c.id);
       if (!rows.length) continue;
-      lines.push('', (c.name[lang] || c.name.de).toUpperCase());
+      lines.push('', `*${c.name[lang] || c.name.de}*`);
       for (const r of rows) {
         const it = itemById(r.item);
-        const de = deName(it) ? ` (${deName(it)})` : '';
-        lines.push(`• ${nameOf(it)}${de}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}`);
+        lines.push(`• ${nameOf(it)}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}`);
+        if (deName(it)) lines.push(`   _${deName(it)}_`);
       }
     }
+    lines.push('', `${t('shareOpen')}: ${location.origin}/einkauf/#liste`);
     return plain(lines.join('\n'));
   }
   async function share() {
