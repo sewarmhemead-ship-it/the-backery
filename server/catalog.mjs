@@ -62,6 +62,9 @@ export const DEFAULT_ITEMS = [
   I('brot', 'bakery', 'stk', 'Brot (verschiedene Sorten)', 'Bread (various kinds)', 'Pane (vari tipi)', 'خبز (أنواع مختلفة)'),
   I('croissant', 'bakery', 'stk', 'Croissants (verschiedene Sorten)', 'Croissants (various kinds)', 'Cornetti (vari tipi)', 'كرواسون (أنواع مختلفة)'),
   I('buttercroissant', 'bakery', 'stk', 'Butter\u00ADcroissant', 'Butter croissant', 'Cornetto al burro', 'كرواسون بالزبدة'),
+  I('pistazien-croissant', 'bakery', 'stk', 'Pistazien­croissant', 'Pistachio croissant', 'Cornetto al pistacchio', 'كرواسون بالفستق', 'croissant'),
+  I('schoko-croissant', 'bakery', 'stk', 'Schoko­croissant', 'Chocolate croissant', 'Cornetto al cioccolato', 'كرواسون بالشوكولا', 'buttercroissant'),
+  I('brezel', 'bakery', 'stk', 'Brezel', 'Pretzel', 'Pretzel', 'بريتزل', '_neu'),
   I('kuchen', 'bakery', 'stk', 'Kuchen', 'Cake', 'Torta', 'كيك'),
 
   // Gemüse & Kräuter
@@ -102,6 +105,7 @@ export const DEFAULT_ITEMS = [
   // Tiefkühl
   I('tk-karotten', 'frozen', 'pkg', 'TK-Karotten', 'Frozen carrots', 'Carote surgelate', 'جزر مجمّد'),
   I('tk-kroketten', 'frozen', 'pkg', 'TK-Kroketten', 'Frozen croquettes', 'Crocchette surgelate', 'كروكيت مجمّد'),
+  I('pizza', 'frozen', 'stk', 'Pizza', 'Pizza', 'Pizza', 'بيتزا', '_neu'),
   I('edamame', 'frozen', 'pkg', 'Edamame', 'Edamame', 'Edamame', 'إدامامي'),
 
   // Vorrat
