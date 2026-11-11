@@ -65,6 +65,9 @@ export const DEFAULT_ITEMS = [
   I('pistazien-croissant', 'bakery', 'stk', 'Pistazien­croissant', 'Pistachio croissant', 'Cornetto al pistacchio', 'كرواسون بالفستق', 'croissant'),
   I('schoko-croissant', 'bakery', 'stk', 'Schoko­croissant', 'Chocolate croissant', 'Cornetto al cioccolato', 'كرواسون بالشوكولا', 'buttercroissant'),
   I('brezel', 'bakery', 'stk', 'Brezel', 'Pretzel', 'Pretzel', 'بريتزل', '_neu'),
+  I('schnecke', 'bakery', 'stk', 'Schnecke', 'Schnecke (sweet roll)', 'Lumaca (dolce)', 'شنيكا', '_neu'),
+  I('nuss-schnecke', 'bakery', 'stk', 'Nuss­schnecke', 'Nut swirl', 'Lumaca alle noci', 'شنيكا بالجوز', '_neu'),
+  I('zimt-schnecke', 'bakery', 'stk', 'Zimt­schnecke', 'Cinnamon swirl', 'Lumaca alla cannella', 'شنيكا بالقرفة', '_neu'),
   I('kuchen', 'bakery', 'stk', 'Kuchen', 'Cake', 'Torta', 'كيك'),
 
   // Gemüse & Kräuter
@@ -90,6 +93,7 @@ export const DEFAULT_ITEMS = [
 
   // Fleisch & Fisch
   I('caesar-chicken', 'meat', 'kg', 'Caesar Chicken', 'Caesar chicken', 'Pollo Caesar', 'دجاج سيزر'),
+  I('corn-chicken', 'meat', 'kg', 'Corn Chicken', 'Corn chicken', 'Corn chicken', 'كورن تشيكن', '_neu'),
   I('schnitzel', 'meat', 'stk', 'Schnitzel', 'Schnitzel', 'Cotoletta', 'شنيتزل'),
   I('fleisch', 'meat', 'kg', 'Fleisch', 'Meat', 'Carne', 'لحمة'),
   I('thunfisch', 'meat', 'kg', 'Thun\u00ADfisch (für Bowls)', 'Tuna (for bowls)', 'Tonno (per le bowl)', 'تونة (للبول)'),
@@ -117,6 +121,9 @@ export const DEFAULT_ITEMS = [
 
   // Getränke & Kaffee
   I('mineralwasser', 'drinks', 'kiste', 'Mineral\u00ADwasser (prickelnd)', 'Sparkling water', 'Acqua frizzante', 'مي غازية'),
+  I('fanta', 'drinks', 'dose', 'Fanta', 'Fanta', 'Fanta', 'فانتا', '_neu'),
+  I('cola', 'drinks', 'dose', 'Cola', 'Cola', 'Cola', 'كولا', '_neu'),
+  I('red-bull', 'drinks', 'dose', 'Red Bull', 'Red Bull', 'Red Bull', 'ريد بول', '_neu'),
   I('stilles-wasser', 'drinks', 'kiste', 'Stilles Wasser', 'Still water', 'Acqua naturale', 'مي بدون غاز'),
   I('kaffeekapseln', 'drinks', 'pkg', 'Kaffee\u00ADkapseln / Cappuccino-Pads', 'Coffee capsules / pads', 'Capsule / cialde di caffè', 'كبسولات قهوة'),
 ];
