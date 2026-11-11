@@ -68,10 +68,17 @@ export const DEFAULT_ITEMS = [
   I('schnecke', 'bakery', 'stk', 'Schnecke', 'Schnecke (sweet roll)', 'Lumaca (dolce)', 'شنيكا', '_neu'),
   I('nuss-schnecke', 'bakery', 'stk', 'Nuss­schnecke', 'Nut swirl', 'Lumaca alle noci', 'شنيكا بالجوز', '_neu'),
   I('zimt-schnecke', 'bakery', 'stk', 'Zimt­schnecke', 'Cinnamon swirl', 'Lumaca alla cannella', 'شنيكا بالقرفة', '_neu'),
+  I('boerek', 'bakery', 'stk', 'Börek', 'Börek', 'Börek', 'بوريك', '_neu'),
+  I('muffins', 'bakery', 'stk', 'Muffins', 'Muffins', 'Muffin', 'مافن', '_neu'),
+  I('kekse', 'bakery', 'pkg', 'Kekse', 'Cookies', 'Biscotti', 'بسكويت', '_neu'),
   I('kuchen', 'bakery', 'stk', 'Kuchen', 'Cake', 'Torta', 'كيك'),
 
   // Gemüse & Kräuter
   I('salat', 'veg', 'stk', 'Salat', 'Lettuce', 'Insalata', 'خس'),
+  I('petersilie', 'veg', 'bund', 'Petersilie', 'Parsley', 'Prezzemolo', 'بقدونس', '_neu'),
+  I('champignons', 'veg', 'pkg', 'Champignons (Pilze)', 'Mushrooms', 'Funghi', 'فطر', '_neu'),
+  I('steckruebe', 'veg', 'kg', 'Steckrübe', 'Rutabaga', 'Rutabaga', 'لفت سويدي', '_neu'),
+  I('gurke', 'veg', 'stk', 'Gurke', 'Cucumber', 'Cetriolo', 'خيار', '_neu'),
   I('rucola', 'veg', 'pkg', 'Rucola', 'Rocket', 'Rucola', 'جرجير'),
   I('rucola-rot', 'veg', 'pkg', 'Roter Rucola', 'Red rocket', 'Rucola rossa', 'جرجير أحمر'),
   I('tomaten', 'veg', 'kg', 'Tomaten', 'Tomatoes', 'Pomodori', 'بندورة'),
@@ -94,6 +101,8 @@ export const DEFAULT_ITEMS = [
   // Fleisch & Fisch
   I('caesar-chicken', 'meat', 'kg', 'Caesar Chicken', 'Caesar chicken', 'Pollo Caesar', 'دجاج سيزر'),
   I('corn-chicken', 'meat', 'kg', 'Corn Chicken', 'Corn chicken', 'Corn chicken', 'كورن تشيكن', '_neu'),
+  I('schinken', 'meat', 'pkg', 'Schinken', 'Ham', 'Prosciutto cotto', 'شنكن', '_neu'),
+  I('pastrami', 'meat', 'pkg', 'Pastrami', 'Pastrami', 'Pastrami', 'بسترمة', '_neu'),
   I('schnitzel', 'meat', 'stk', 'Schnitzel', 'Schnitzel', 'Cotoletta', 'شنيتزل'),
   I('fleisch', 'meat', 'kg', 'Fleisch', 'Meat', 'Carne', 'لحمة'),
   I('thunfisch', 'meat', 'kg', 'Thun\u00ADfisch (für Bowls)', 'Tuna (for bowls)', 'Tonno (per le bowl)', 'تونة (للبول)'),
@@ -113,6 +122,11 @@ export const DEFAULT_ITEMS = [
   I('edamame', 'frozen', 'pkg', 'Edamame', 'Edamame', 'Edamame', 'إدامامي'),
 
   // Vorrat
+  I('mais', 'pantry', 'dose', 'Mais', 'Sweetcorn', 'Mais', 'ذرة (علبة)', '_neu'),
+  I('oliven', 'pantry', 'glas', 'Oliven', 'Olives', 'Olive', 'زيتون', '_neu'),
+  I('pasta', 'pantry', 'pkg', 'Pasta', 'Pasta', 'Pasta', 'مكرونة (باستا)', '_neu'),
+  I('lasagne', 'pantry', 'pkg', 'Lasagne', 'Lasagne', 'Lasagne', 'لازانيا', '_neu'),
+  I('tortellini', 'pantry', 'pkg', 'Tortellini', 'Tortellini', 'Tortellini', 'تورتيليني', '_neu'),
   I('reis', 'pantry', 'kg', 'Reis', 'Rice', 'Riso', 'رز'),
   I('quinoa', 'pantry', 'kg', 'Quinoa', 'Quinoa', 'Quinoa', 'كينوا'),
   I('kichererbsen', 'pantry', 'dose', 'Kicher\u00ADerbsen', 'Chickpeas', 'Ceci', 'حمّص حب'),
