@@ -47,6 +47,14 @@ export const PUSH_TEXT = {
   ar: { title: 'THE BAKERY · النواقص', added: 'انضاف للقائمة: {names}', urgent: 'مستعجل: {names}', daily: 'ناقص {n} أغراض: {names}', test: 'التنبيهات شغالة ✓' },
 };
 
+// Texte der E-Mail an den Chef / die Chefin
+export const MAIL_TEXT = {
+  de: { title: 'Einkaufsliste', count: '{n} Artikel fehlen', urgent: 'Dringend', nf: 'im Geschäft nicht gefunden', open: 'Liste öffnen und abhaken' },
+  en: { title: 'Shopping list', count: '{n} items missing', urgent: 'Urgent', nf: 'not found in the shop', open: 'Open the list and tick things off' },
+  it: { title: 'Lista della spesa', count: 'Mancano {n} articoli', urgent: 'Urgente', nf: 'non trovato in negozio', open: 'Apri la lista e spunta' },
+  ar: { title: 'قائمة الشراء', count: 'ناقص {n} أغراض', urgent: 'مستعجل', nf: 'ما انلقى بالمحل', open: 'افتح القائمة وعلّم عليها' },
+};
+
 const I = (id, cat, unit, de, en, it, ar, img = id) => ({ id, cat, unit, img, name: { de, en, it, ar } });
 
 export const DEFAULT_ITEMS = [

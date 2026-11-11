@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import http from 'node:http';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'einkauf-'));
@@ -13,6 +14,14 @@ const PORT = 18000 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PIN = '4711';
 let proc;
+const ENV = () => ({ ...process.env, PORT, DATA_DIR: DATA, TEAM_PIN: PIN, RESEND_API_KEY: "test-key", MAIL_API_URL: `http://127.0.0.1:${mailSrv.address().port}/emails` });
+// falscher Mail-Dienst: merkt sich, was der Server verschicken wollte
+const mails = [];
+const mailSrv = http.createServer((req, res) => {
+  let b = '';
+  req.on('data', c => { b += c; });
+  req.on('end', () => { mails.push({ auth: req.headers.authorization, ...JSON.parse(b) }); res.end('{"id":"x"}'); });
+});
 
 const api = (p, { method = 'GET', body, pin = PIN, raw, type } = {}) => fetch(BASE + '/api/einkauf' + p, {
   method,
@@ -21,14 +30,15 @@ const api = (p, { method = 'GET', body, pin = PIN, raw, type } = {}) => fetch(BA
 });
 
 before(async () => {
-  proc = spawn(process.execPath, [path.join(here, 'server.mjs')], { env: { ...process.env, PORT, DATA_DIR: DATA, TEAM_PIN: PIN }, stdio: 'pipe' });
+  await new Promise(r => mailSrv.listen(0, '127.0.0.1', r));
+  proc = spawn(process.execPath, [path.join(here, 'server.mjs')], { env: ENV(), stdio: 'pipe' });
   for (let i = 0; i < 50; i++) {
     try { if ((await fetch(BASE + '/api/einkauf/ping')).ok) return; } catch { /* startet noch */ }
     await new Promise(r => setTimeout(r, 100));
   }
   throw new Error('server did not start');
 });
-after(() => { proc.kill(); fs.rmSync(DATA, { recursive: true, force: true }); });
+after(() => { mailSrv.close(); proc.kill(); fs.rmSync(DATA, { recursive: true, force: true }); });
 
 test('website still served', async () => {
   const r = await fetch(BASE + '/');
@@ -121,7 +131,7 @@ test('data survives restart', async () => {
   await api('/need', { method: 'POST', body: { item: 'eier', qty: 3, unit: 'karton', by: 'Sara' } });
   proc.kill('SIGTERM');
   await new Promise(r => proc.once('exit', r));
-  proc = spawn(process.execPath, [path.join(here, 'server.mjs')], { env: { ...process.env, PORT, DATA_DIR: DATA, TEAM_PIN: PIN }, stdio: 'pipe' });
+  proc = spawn(process.execPath, [path.join(here, 'server.mjs')], { env: ENV(), stdio: 'pipe' });
   for (let i = 0; i < 50; i++) {
     try { if ((await fetch(BASE + '/api/einkauf/ping')).ok) break; } catch { /* startet noch */ }
     await new Promise(r => setTimeout(r, 100));
@@ -178,6 +188,27 @@ test('push encryption matches RFC 8291 example', async () => {
     'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', 'BTBZMqHH6r4Tts7J_aSIgg',
     { salt: Buffer.from('DGv6ra1nlYgDCS1FRnbzlw', 'base64url'), ecdh });
   assert.equal(out.toString('base64url'), 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN');
+});
+
+test('recipient: WhatsApp number, e-mail, send the list', async () => {
+  const post = (p, body) => api(p, { method: 'POST', body });
+  assert.equal((await post('/boss', { wa: '0664 123' })).status, 400, 'no country code');
+  assert.equal((await post('/boss', { email: 'nope' })).status, 400);
+  let s = await (await post('/boss', { name: 'Chef', wa: '+43 (664) 123-4567', email: 'Chef@Example.at', auto: true, lang: 'ar' })).json();
+  assert.deepEqual(s.boss, { name: 'Chef', wa: '436641234567', email: 'chef@example.at', lang: 'ar', auto: true });
+  assert.equal(s.mail, true);
+
+  await post('/need', { item: 'reis', qty: 6, unit: 'kg', note: '<b>3,5%</b>', urgent: true });
+  const r = await post('/send/email', {});
+  assert.equal(r.status, 200);
+  const m = mails.at(-1);
+  assert.equal(m.auth, 'Bearer test-key');
+  assert.deepEqual(m.to, ['chef@example.at']);
+  assert.match(m.subject, /قائمة الشراء/);
+  assert.match(m.html, /dir="rtl"/);
+  assert.match(m.html, /&lt;b&gt;3,5%&lt;\/b&gt;/, 'note is escaped');
+  assert.match(m.text, /رز: 6 كيلو/);
+  assert.equal((await post('/send/email', {})).status, 429, 'not twice within seconds');
 });
 
 test('PIN brute force is slowed down', async () => {

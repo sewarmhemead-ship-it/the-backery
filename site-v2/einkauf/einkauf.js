@@ -64,6 +64,11 @@
     alert: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
     search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 8.5l5 5M13 8.5l-5 5"/></svg>',
     euro: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6.5A7 7 0 1 0 17 17.5M4 10h9M4 14h9"/></svg>',
+    send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5l1.4-4.3A8.5 8.5 0 1 1 8.2 19z"/><path d="M9 10.5h6M9 13.5h4"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7.5 8.5 6 8.5-6"/></svg>',
+    share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   };
 
@@ -158,7 +163,8 @@
     const badge = $('#badge');
     badge.hidden = n === 0; badge.textContent = n;
     const who = $('#who');
-    who.replaceChildren(h('span', { html: ICON.user }), me ? t('hello', { n: me }) : t('whoAreYou'), ' ', h('u', null, me ? t('change') : t('setName')));
+    who.replaceChildren(h('span', { class: 'ico', html: ICON.user }), h('span', { class: 'txt' }, me || t('setName')));
+    who.setAttribute('aria-label', me ? `${t('hello', { n: me })} · ${t('change')}` : t('whoAreYou'));
   }
 
   function renderNeed() {
@@ -190,7 +196,7 @@
         onclick: () => document.getElementById('cat-' + c.id)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }),
       }, h('i'), c.name[lang] || c.name.de));
       cats.append(h('section', { class: 'cat', id: 'cat-' + c.id, 'data-cat': c.id },
-        h('h2', { class: 'cat-h' }, h('i'), c.name[lang] || c.name.de),
+        h('h2', { class: 'cat-h' }, c.name[lang] || c.name.de, h('small', null, num(list.length))),
         h('div', { class: 'grid' }, list.map(i => card(i, open.get(i.id))))));
     }
 
@@ -214,9 +220,10 @@
       onclick: () => openItem(it.id),
     },
     pic(it),
-    h('span', { class: 'nm', 'data-hidden': it.hidden ? t('hiddenTag') : null }, m ? m[1] : full),
-    m ? h('span', { class: 'sub' }, m[2]) : null,
-    r ? h('span', { class: 'pill', 'aria-hidden': 'true' }, qtyText(r)) : null);
+    h('span', { class: 'card-txt' },
+      h('span', { class: 'nm', 'data-hidden': it.hidden ? t('hiddenTag') : null }, m ? m[1] : full),
+      m ? h('span', { class: 'sub' }, m[2].replace(/^\/\s*/, '')) : null),
+    r ? h('span', { class: 'pill', 'aria-hidden': 'true' }, qtyText(r)) : h('span', { class: 'add', 'aria-hidden': 'true', html: ICON.plus }));
   }
 
   function renderList() {
@@ -227,7 +234,7 @@
 
     if (!open.length) {
       list.append(h('div', { class: 'empty' },
-        h('img', { src: '../assets/img/logo.webp', alt: '', width: 130, height: 237 }),
+        h('span', { class: 'empty-ico', html: ICON.check }),
         h('h2', null, t('empty')), h('p', null, t('emptyLead'))));
     } else {
       list.append(h('p', { class: 'lead list-hint' }, t('listHint')));
@@ -243,7 +250,7 @@
         const rows = open.filter(r => !r.urgent && itemById(r.item)?.cat === c.id).sort((a, b) => (a.nf ? 1 : 0) - (b.nf ? 1 : 0) || a.at - b.at);
         if (!rows.length) continue;
         list.append(h('section', { class: 'group', 'data-cat': c.id },
-          h('h2', { class: 'group-h' }, h('i'), c.name[lang] || c.name.de),
+          h('h2', { class: 'group-h' }, c.name[lang] || c.name.de, h('small', null, num(rows.length))),
           h('div', { class: 'rows' }, rows.map(r => listRow(r, itemById(r.item))))));
       }
     }
@@ -253,7 +260,7 @@
       .sort((a, b) => b.doneAt - a.doneAt).slice(0, 25);
     const bought = $('#bought'); bought.replaceChildren();
     if (done.length) {
-      bought.append(h('h2', null, t('lastBought')), ...done.map(r => {
+      bought.append(h('h2', null, t('lastBought')), h('div', { class: 'done-list' }, done.map(r => {
         const it = itemById(r.item);
         return h('div', { class: 'done-row' }, pic(it),
           h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
@@ -261,7 +268,7 @@
           h('div', { class: 'done-btns' },
             priceBtn(r, it),
             h('button', { type: 'button', onclick: () => reopen(r, it) }, t('backOnList'))));
-      }));
+      })));
     }
   }
 
@@ -328,21 +335,22 @@
     try { await post('/reopen', { id: r.id, by: me }); toast(t('addedToast', { name: nameOf(it) })); } catch { toast(t('error')); }
   }
 
-  function shareText() {
+  function shareText(wa = true) {
+    const bold = s => (wa ? `*${s}*` : s);
     const d = new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'short', day: 'numeric', month: 'numeric' }).format(new Date());
     // WhatsApp: *fett* für Überschriften, _kursiv_ für den deutschen Namen
-    const lines = [`*THE BAKERY · ${t('shareTitle')}*`, d];
+    const lines = [bold(`THE BAKERY · ${t('shareTitle')}`), d];
     const line = r => {
       const it = itemById(r.item);
       lines.push(`• ${nameOf(it)}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}${r.nf ? ` (${t('nfTag')})` : ''}`);
-      if (deName(it)) lines.push(`   _${deName(it)}_`);
+      if (deName(it)) lines.push(wa ? `   _${deName(it)}_` : `   (${deName(it)})`);
     };
     const urgent = openRequests().filter(r => r.urgent && itemById(r.item));
-    if (urgent.length) { lines.push('', `*❗ ${t('urgent')}*`); urgent.forEach(line); }
+    if (urgent.length) { lines.push('', bold(`❗ ${t('urgent')}`)); urgent.forEach(line); }
     for (const c of S.cats) {
       const rows = openRequests().filter(r => !r.urgent && itemById(r.item)?.cat === c.id);
       if (!rows.length) continue;
-      lines.push('', `*${c.name[lang] || c.name.de}*`);
+      lines.push('', bold(c.name[lang] || c.name.de));
       rows.forEach(line);
     }
     lines.push('', `${t('shareOpen')}: ${location.origin}/einkauf/#liste`);
@@ -356,6 +364,78 @@
     try { await navigator.clipboard.writeText(text); toast(t('copied')); }
     catch { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
   }
+
+  // Liste an den Chef / die Chefin: WhatsApp, E-Mail oder eine andere App
+  const ltr = s => '\u2066' + s + '\u2069';
+  function openSend() {
+    const b = S.boss || {};
+    const err = h('p', { class: 'err', role: 'alert' });
+    const opt = (icon, title, sub, fn) => h('button', { type: 'button', class: 'opt', onclick: fn },
+      h('span', { class: 'opt-ico', html: icon }), h('span', null, h('b', null, title), h('small', null, sub)),
+      h('span', { class: 'opt-go', html: ICON.chev }));
+    const viaWa = () => {
+      window.open('https://wa.me/' + (b.wa || '') + '?text=' + encodeURIComponent(shareText()), '_blank', 'noopener');
+      closeSheet();
+    };
+    const viaMail = async () => {
+      if (!b.email) { openBoss(); return; }
+      if (S.mail) {
+        try { await post('/send/email', {}); closeSheet(); toast(t('mailSent', { to: b.email })); }
+        catch (e) { if (e.message !== 'pin') err.textContent = t('mailFail'); }
+        return;
+      }
+      location.href = 'mailto:' + b.email + '?subject=' + encodeURIComponent('THE BAKERY · ' + t('shareTitle'))
+        + '&body=' + encodeURIComponent(shareText(false));
+      closeSheet();
+    };
+    const who = [b.name, b.wa ? ltr('+' + b.wa) : '', b.email ? ltr(b.email) : ''].filter(Boolean);
+    openSheet(
+      h('h2', { class: 's-title', id: 'sheet-h' }, t('sendTitle')),
+      h('p', { class: 's-lead' }, t(openRequests().length === 1 ? 'count1' : 'countN', { n: openRequests().length })),
+      h('div', { class: 'opts' },
+        opt(ICON.chat, 'WhatsApp', b.wa ? [b.name, ltr('+' + b.wa)].filter(Boolean).join(' · ') : t('waPick'), viaWa),
+        opt(ICON.mail, t('mailTitle'), b.email ? ltr(b.email) : t('mailAdd'), viaMail),
+        opt(ICON.share, t('otherTitle'), t('otherSub'), () => { closeSheet(); share(); })),
+      err,
+      h('p', { class: 'to-line' },
+        h('span', null, who.length ? [t('sendTo'), ': ', h('b', null, who[0])] : t('noRecipient')),
+        h('button', { type: 'button', onclick: openBoss }, who.length ? t('changeRecipient') : t('setRecipient'))));
+  }
+
+  function openBoss() {
+    const b = S.boss || {};
+    let auto = !!b.auto;
+    const nameIn = h('input', { class: 'field', id: 'f-bn', maxlength: 40, value: b.name || '', placeholder: t('recNamePh'), autocomplete: 'off' });
+    const waIn = h('input', { class: 'field', id: 'f-bw', type: 'tel', dir: 'ltr', inputmode: 'tel', maxlength: 24, value: b.wa ? '+' + b.wa : '', placeholder: '+43 664 1234567', autocomplete: 'off' });
+    const mailIn = h('input', { class: 'field', id: 'f-bm', type: 'email', dir: 'ltr', inputmode: 'email', maxlength: 120, value: b.email || '', placeholder: 'name@beispiel.at', autocomplete: 'off', autocapitalize: 'off' });
+    const err = h('p', { class: 'err', role: 'alert' });
+    const sw = h('button', { type: 'button', class: 'switch', role: 'switch', 'aria-checked': String(auto && S.mail), disabled: !S.mail,
+      onclick: () => { auto = !auto; sw.setAttribute('aria-checked', String(auto)); } }, h('i'), h('span', null, t('autoMail')));
+    async function save() {
+      const wa = parseNumDigits(waIn.value);
+      const email = mailIn.value.trim();
+      if (wa && !/^[1-9]\d{6,14}$/.test(wa)) { err.textContent = t('badWa'); waIn.focus(); return; }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = t('badMail'); mailIn.focus(); return; }
+      try {
+        await post('/boss', { name: nameIn.value, wa, email, auto: auto && !!email, lang });
+        toast(t('saved')); openSend();
+      } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+    }
+    openSheet(
+      h('h2', { class: 's-title', id: 'sheet-h' }, t('recTitle')),
+      h('p', { class: 's-lead' }, t('recLead')),
+      h('label', { class: 'lbl', for: 'f-bn' }, t('name')), nameIn,
+      h('label', { class: 'lbl', for: 'f-bw' }, t('recWa')), waIn, h('p', { class: 'help' }, t('recWaHelp')),
+      h('label', { class: 'lbl', for: 'f-bm' }, t('mailTitle')), mailIn,
+      h('div', { class: 'switches' }, sw),
+      S.mail ? null : h('p', { class: 'help' }, t('autoNeedsSetup')),
+      err,
+      h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', onclick: save }, t('save'))));
+  }
+  // +43 (0) 664 … / 0043 … / ٠٦٦٤ → nur Ziffern, ohne führendes + oder 00
+  const parseNumDigits = s => String(s)
+    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x6F0)
+    .replace(/\(0\)/g, '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, '');
 
   // ---------------------------------------------------------- Unterblatt
   const sheetWrap = $('#sheet'), sheet = $('.sheet', sheetWrap);
@@ -462,7 +542,7 @@
         h('button', { type: 'button', class: 'btn primary', onclick: save }, r ? t('update') : t('add')),
         r ? h('button', { type: 'button', class: 'btn ghost full nf-btn', onclick: notFound },
           h('span', { html: ICON.search }), r.nf ? t('notFoundUndo') : t('notFoundBtn')) : null,
-        r ? h('button', { type: 'button', class: 'btn ghost full', onclick: remove }, t('removeFromList')) : null),
+        r ? h('button', { type: 'button', class: 'btn ghost full danger', onclick: remove }, t('removeFromList')) : null),
       h('div', { class: 'admin' },
         h('button', { type: 'button', onclick: () => pickPhoto(it) }, h('span', { html: ICON.cam }), t('takePhoto')),
         it.photo ? h('button', { type: 'button', onclick: () => editItem(it, { resetPhoto: true }) }, h('span', { html: ICON.undo }), t('resetPhoto')) : null,
@@ -563,7 +643,6 @@
     const inp = h('input', { type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 32, 'aria-label': t('pinTitle') });
     const err = h('p', { class: 'err', role: 'alert' }, msg || (wrong ? t('pinWrong') : ''));
     box.replaceChildren(
-      h('img', { src: '../assets/img/logo.webp', alt: '', width: 120, height: 219 }),
       h('span', { class: 'wordmark', 'aria-hidden': 'true' }),
       h('h1', null, t('pinTitle')), h('p', null, t('pinLead')),
       h('form', { onsubmit: async e => {
@@ -664,14 +743,14 @@
       box.append(h('section', { class: 'day' },
         h('h3', null, new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
           sum ? h('span', null, money(sum)) : null),
-        rows.map(r => {
+        h('div', { class: 'done-list' }, rows.map(r => {
           const it = itemById(r.item);
           const time = new Intl.DateTimeFormat(LOCALE[lang], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(r.doneAt));
           return h('div', { class: 'done-row arch' }, pic(it),
             h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
               h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), time].join(' · '))),
             priceBtn(r, it));
-        })));
+        }))));
     }
   }
 
@@ -697,8 +776,8 @@
     const b = $('#bell');
     b.hidden = !(pushOk() || isIos);
     b.classList.toggle('on', !!pushSub);
-    b.replaceChildren(h('span', { html: ICON.bell }), t('notif'));
-    if (pushSub) b.append(' ', h('u', null, t('notifOnTag')));
+    b.replaceChildren(h('span', { class: 'ico', html: ICON.bell }));
+    b.setAttribute('aria-label', t('notif') + (pushSub ? ` · ${t('notifOnTag')}` : ''));
   }
   const keyBytes = k => { const s = atob(k.replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
   const prefs = () => { try { return JSON.parse(store.get('tb-ek-push') || '{}'); } catch { return {}; } };
@@ -771,7 +850,7 @@
   }));
   $('#q').addEventListener('input', e => { query = e.target.value; renderNeed(); });
   $('#who').addEventListener('click', openWho);
-  $('#share').addEventListener('click', share);
+  $('#share').addEventListener('click', openSend);
   $('#print').addEventListener('click', () => window.print());
 
   renderStaticBeforeData();

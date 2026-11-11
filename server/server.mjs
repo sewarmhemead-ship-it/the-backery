@@ -16,6 +16,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { CATEGORIES, UNITS, DEFAULT_ITEMS, PUSH_TEXT, LANGS } from './catalog.mjs';
 import { loadVapid, sendPush, pushAllowed } from './push.mjs';
+import { buildList, sendMail, mailReady, validEmail } from './mail.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || path.join(ROOT, 'site-v2'));
@@ -41,7 +42,7 @@ const DEFAULT_IDS = new Set(DEFAULT_ITEMS.map(i => i.id));
 // ---------------------------------------------------------------- Daten
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '' }; }
+function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null }; }
 
 function loadDb() {
   try {
@@ -54,6 +55,7 @@ function loadDb() {
       subs: Array.isArray(raw.subs) ? raw.subs : [],
       lastDaily: typeof raw.lastDaily === 'string' ? raw.lastDaily : '',
       origin: typeof raw.origin === 'string' ? raw.origin : '',
+      boss: raw.boss && typeof raw.boss === 'object' ? raw.boss : null,
     };
   } catch (e) {
     if (e.code !== 'ENOENT') {
@@ -120,6 +122,7 @@ function state() {
   return {
     v: db.v, items: allItems(), cats: CATEGORIES, units: UNITS, top: topItems(),
     requests: db.requests.filter(r => r.st === 'open' || r.doneAt > since).map(publicReq),
+    boss: db.boss, mail: mailReady(),
   };
 }
 const publicReq = ({ dev, ...r }) => r;
@@ -204,6 +207,18 @@ const actions = {
     db.subs = db.subs.filter(x => x.endpoint !== endpoint && (!rec.dev || x.dev !== rec.dev));
     if (db.subs.length >= MAX_SUBS) db.subs.shift();
     db.subs.push(rec);
+    rememberOrigin(req);
+  },
+  // Empfänger der Liste (Chef/Chefin): WhatsApp-Nummer und/oder E-Mail
+  boss(b, req) {
+    let wa = String(b.wa ?? '').replace(/[\s()./-]/g, '').replace(/^\+/, '').replace(/^00/, '');
+    if (wa && !/^[1-9]\d{6,14}$/.test(wa)) throw new Bad('bad number');
+    const email = clean(b.email, 120).toLowerCase();
+    if (email && !validEmail(email)) throw new Bad('bad email');
+    db.boss = {
+      name: clean(b.name, 40), wa, email,
+      lang: LANGS.includes(b.lang) ? b.lang : 'de', auto: !!b.auto && !!email,
+    };
     rememberOrigin(req);
   },
   unsubscribe(b) {
@@ -293,6 +308,18 @@ function flushNotify() {
   }
 }
 
+// Liste per E-Mail an den gespeicherten Empfänger
+let lastMail = 0;
+async function mailList() {
+  const b = db.boss;
+  if (!b?.email) throw new Bad('no recipient');
+  if (!mailReady()) throw new Bad('mail not configured', 503);
+  const open = db.requests.filter(r => r.st === 'open').sort((x, y) => x.at - y.at);
+  if (!open.length) throw new Bad('list empty');
+  await sendMail(b.email, buildList(open, allItems(), b.lang, db.origin));
+  lastMail = Date.now();
+}
+
 // Tägliche Zusammenfassung um 20 Uhr Wiener Zeit
 const viennaNow = () => {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -306,6 +333,7 @@ function dailyCheck() {
   db.lastDaily = day; changed();
   const open = db.requests.filter(r => r.st === 'open');
   if (!open.length) return;
+  if (db.boss?.auto && db.boss.email && mailReady()) mailList().catch(e => console.error('daily mail failed', e.message));
   for (const s of db.subs.filter(x => x.daily)) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.de;
     const names = open.slice(0, 12).map(r => lineFor(r, s.lang)).join(', ') + (open.length > 12 ? ' …' : '');
@@ -404,6 +432,17 @@ async function api(req, res, url) {
     return json(res, 200, { status });
   }
 
+  if (p === '/send/email' && req.method === 'POST') {
+    if (Date.now() - lastMail < 30e3) throw new Bad('too fast', 429);
+    rememberOrigin(req);
+    try { await mailList(); } catch (e) {
+      if (e instanceof Bad) throw e;
+      console.error('mail failed', e.message);
+      throw new Bad('mail failed', 502);
+    }
+    return json(res, 200, { ok: true, to: db.boss.email });
+  }
+
   const um = p.match(/^\/photo\/([a-z0-9-]{1,40})$/);
   if (um && req.method === 'PUT') {
     const id = um[1];
@@ -419,7 +458,7 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
-  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe)$/);
+  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss)$/);
   if (am && req.method === 'POST') {
     if (!String(req.headers['content-type'] || '').includes('application/json')) throw new Bad('json only', 415);
     let body;
