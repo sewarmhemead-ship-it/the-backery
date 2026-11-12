@@ -70,6 +70,7 @@ function bakingPhotos(){return '<div class="photo-grid">'+photo('bread-program.j
 photoLabels.cooker=['ماكينة الرز · COOK للطبخ، WARM للحفاظ على السخونة','Reiskocher · COOK zum Kochen, WARM zum Warmhalten','Rice cooker · COOK for cooking, WARM for keeping warm','Pirinç pişirici · COOK pişirme, WARM sıcak tutma','Συσκευή ρυζιού · COOK για μαγείρεμα, WARM για διατήρηση ζεστού'];
 function taskDetail(i){let text=txt(tasks[i][1]);if(i===0)return text;if(i===1)return text+photo('oven-breakers.jpg','breakers');if(i===3)return text+bakingPhotos();if(i===5)return renderBowlChecklist(lang,state);if(i===4)return text+photo('rice-cooker.jpg','cooker');if(i===7)return text+renderBakeSettings(lang);if(i===9)return renderTomorrow(lang,state);if(i===6)return text+photo('baguette-program.jpg','baguette')+'<p class="small">'+txt(photoLabels.screen)+'</p>';return text;}
 
+addItalian();
 let lang=localStorage.getItem('bakery-guide-language')||'ar';if(!languages.includes(lang))lang='ar';let view=['daily','oven','sandwiches'].includes(location.hash.slice(1))?location.hash.slice(1):'daily';
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 let day=today();let state={};try{state=JSON.parse(localStorage.getItem('bakery-guide-'+day)||'{}')}catch{}if(!state||typeof state!=='object')state={};

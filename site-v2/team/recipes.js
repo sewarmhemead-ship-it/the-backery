@@ -42,6 +42,6 @@ sandwichRecipes.push(
   }}
 );
 function renderSandwiches(language){
-  const labels=sandwichLabels[language];const index=['ar','de','en','tr','el'].indexOf(language);
+  const labels=sandwichLabels[language];const index=languages.indexOf(language);
   return `<div class="recipe-heading"><h2>${labels.title}</h2><p class="small">${labels.intro}</p></div><div class="recipe-grid">${sandwichRecipes.map(recipe=>`<article class="recipe-card"><a class="recipe-image-link" href="${recipe.image}" target="_blank" rel="noopener"><img class="recipe-image" src="${recipe.image}" alt="${recipe.name[index]}" loading="lazy"></a><div class="recipe-body"><p class="eyebrow">THE BAKERY · SANDWICHES</p><h3>${recipe.name[index]}</h3><h4>${labels.ingredients}</h4><ul class="ingredients">${(recipe.details?.[language]||labels).filling.map(ingredient=>`<li>${ingredient}</li>`).join('')}</ul><h4>${labels.method}</h4><ol class="assembly">${(recipe.details?.[language]||labels).steps.map(step=>`<li>${step}</li>`).join('')}</ol></div></article>`).join('')}</div>`;
 }
