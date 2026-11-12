@@ -7,7 +7,7 @@ function addItalian(){
  tasks.forEach((task,i)=>{task[0].push(titles[i]);task[1].push(instructions[i])});
  riceMachineAlert.push('Assicurati che la macchina del riso sia accesa e impostata su COOK.');
  const photos={lockbox:'Cassetta portachiavi · codice come nella foto',key:'Nella cassetta: la chiave del locale',breakers:'Accendi entrambi: Backofen 1 e Backofen 2',pastry:'Programma solo per croissant e prodotti di pasticceria',bread:'Programma per il pane',baguette:'Programma baguette · solo panini, pizza e falafel',manual:'Börek · programma manuale',screen:'Seleziona l’icona cerchiata in verde. La temperatura visibile nella foto non è un’impostazione di cottura confermata. Tempi e quantità verranno aggiunti.',cooker:'Macchina del riso · COOK per cuocere, WARM per mantenere caldo'};
- Object.entries(photos).forEach(([key,value])=>photoLabels[key].push(value));
+ Object.entries(photos).forEach(([key,value])=>photoLabels[key]&&photoLabels[key].push(value));
  sandwichLabels.it={title:'Panini',intro:'Usa la foto come riferimento. Segui gli ingredienti e l’ordine di preparazione di ogni panino.',ingredients:'Ingredienti',method:'Ordine di preparazione',filling:['Formaggio spalmabile','Rucola','3 fette di Gouda','1 fetta di pomodoro','1 pezzo di peperone'],steps:['Spalma il formaggio sul pane.','Aggiungi la rucola.','Aggiungi 3 fette di Gouda.','Aggiungi 1 fetta di pomodoro.','Aggiungi 1 pezzo di peperone.']};
  const recipes={
  'gouda-croissant':{name:'Croissant al Gouda'},kornspitz:{name:'Kornspitz'},
