@@ -41,6 +41,17 @@ sandwichRecipes.push(
     el:{filling:['Μαγιονέζα','Τυρί γκούντα','Ζαμπόν','Πιπεριά','Ντομάτα'],steps:['Άλειψε το ψωμί με μαγιονέζα.','Βάλε το τυρί γκούντα.','Πρόσθεσε το ζαμπόν.','Πρόσθεσε πιπεριά.','Πρόσθεσε ντομάτα.']}
   }}
 );
+sandwichRecipes.push({
+  id:'gouda-red-coleslaw',image:'assets/gouda-red-coleslaw.jpg',
+  name:['صندويشة الجودا والكول سلو الأحمر','Gouda-Sandwich mit Rotkohl-Coleslaw','Gouda & red coleslaw sandwich','Gouda ve kırmızı coleslaw sandviçi','Σάντουιτς γκούντα και κόκκινης coleslaw'],
+  details:{
+    ar:{filling:['فريش كيزه (جبنة كريمية)','روكولا','3 قطع جبنة جودا','كول سلو أحمر'],steps:['ادهن الخبز بالفريش كيزه.','ضع الروكولا.','أضف 3 قطع جبنة جودا.','أضف الكول سلو الأحمر.']},
+    de:{filling:['Frischkäse','Rucola','3 Scheiben Gouda','Rotkohl-Coleslaw'],steps:['Das Brot mit Frischkäse bestreichen.','Rucola darauflegen.','3 Scheiben Gouda hinzufügen.','Rotkohl-Coleslaw hinzufügen.']},
+    en:{filling:['Cream cheese','Rocket (arugula)','3 slices of Gouda','Red coleslaw'],steps:['Spread cream cheese on the bread.','Add rocket.','Add 3 slices of Gouda.','Add red coleslaw.']},
+    tr:{filling:['Krem peynir','Roka','3 dilim Gouda peyniri','Kırmızı coleslaw'],steps:['Ekmeğe krem peynir sür.','Rokayı koy.','3 dilim Gouda peyniri ekle.','Kırmızı coleslaw ekle.']},
+    el:{filling:['Τυρί κρέμα','Ρόκα','3 φέτες γκούντα','Κόκκινη σαλάτα coleslaw'],steps:['Άλειψε το ψωμί με τυρί κρέμα.','Βάλε τη ρόκα.','Πρόσθεσε 3 φέτες γκούντα.','Πρόσθεσε την κόκκινη σαλάτα coleslaw.']}
+  }
+});
 function renderSandwiches(language){
   const labels=sandwichLabels[language];const index=languages.indexOf(language);
   return `<div class="recipe-heading"><h2>${labels.title}</h2><p class="small">${labels.intro}</p></div><div class="recipe-grid">${sandwichRecipes.map(recipe=>`<article class="recipe-card"><a class="recipe-image-link" href="${recipe.image}" target="_blank" rel="noopener"><img class="recipe-image" src="${recipe.image}" alt="${recipe.name[index]}" loading="lazy"></a><div class="recipe-body"><p class="eyebrow">THE BAKERY · SANDWICHES</p><h3>${recipe.name[index]}</h3><h4>${labels.ingredients}</h4><ul class="ingredients">${(recipe.details?.[language]||labels).filling.map(ingredient=>`<li>${ingredient}</li>`).join('')}</ul><h4>${labels.method}</h4><ol class="assembly">${(recipe.details?.[language]||labels).steps.map(step=>`<li>${step}</li>`).join('')}</ol></div></article>`).join('')}</div>`;
