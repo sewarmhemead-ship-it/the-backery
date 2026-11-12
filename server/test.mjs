@@ -60,6 +60,29 @@ test('no path traversal or dotfiles', async () => {
   }
 });
 
+test('team guide is served without private key-safe details', async () => {
+  const redirect = await fetch(BASE + '/team', { redirect: 'manual' });
+  assert.equal(redirect.status, 301);
+  assert.equal(redirect.headers.get('location'), '/team/');
+  const page = await fetch(BASE + '/team/');
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /TEAM GUIDE/);
+  assert.equal(page.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.equal(page.headers.get('x-frame-options'), 'DENY');
+  const app = await fetch(BASE + '/team/app.js');
+  assert.equal(app.headers.get('cache-control'), 'no-cache');
+  assert.doesNotMatch(await app.text(), /2024|key-safe|key-inside/);
+  for (const name of ['key-safe.jpg', 'key-inside.jpg']) {
+    assert.equal((await fetch(BASE + '/team/assets/' + name)).status, 404);
+  }
+  const kitchen = await (await fetch(BASE + '/team/kitchen.js')).text();
+  assert.match(kitchen, /href="\/einkauf\/"/);
+  for (const file of ['recipes.js', 'bowl.js', 'assets/rice-cooker.jpg', 'assets/sandwich-authority.jpg']) {
+    assert.equal((await fetch(BASE + '/team/' + file)).status, 200, file);
+  }
+});
+
 test('PIN required', async () => {
   assert.equal((await api('/state', { pin: '' })).status, 401);
   assert.equal((await api('/state', { pin: '0000' })).status, 401);

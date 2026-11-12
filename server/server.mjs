@@ -587,13 +587,14 @@ async function serveStatic(req, res, url) {
   const ext = path.extname(file).toLowerCase();
   const etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
   const inEinkauf = rel.startsWith('/einkauf/');
+  const inTeam = rel.startsWith('/team/');
   const headers = {
     'Content-Type': TYPES[ext] || 'application/octet-stream',
-    'Cache-Control': ext === '.html' || ext === '.webmanifest' || (inEinkauf && ext !== '.webp') ? 'no-cache' : 'public, max-age=3600',
+    'Cache-Control': ext === '.html' || ext === '.webmanifest' || (inEinkauf && ext !== '.webp') || inTeam ? 'no-cache' : 'public, max-age=3600',
     ETag: etag,
   };
-  if (inEinkauf) headers['X-Robots-Tag'] = 'noindex, nofollow';
-  if (inEinkauf && ext === '.html') { headers['Content-Security-Policy'] = EINKAUF_CSP; headers['X-Frame-Options'] = 'DENY'; }
+  if (inEinkauf || inTeam) headers['X-Robots-Tag'] = 'noindex, nofollow';
+  if ((inEinkauf || inTeam) && ext === '.html') { headers['Content-Security-Policy'] = EINKAUF_CSP; headers['X-Frame-Options'] = 'DENY'; }
   if (req.headers['if-none-match'] === etag) return send(res, 304, undefined, headers);
 
   let body = await fsp.readFile(file);
