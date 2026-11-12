@@ -643,3 +643,10 @@ main { max-width: 1080px; margin-inline: auto; padding-bottom: calc(var(--tabs-h
 .done-ico { display: grid; place-items: center; width: 30px; height: 30px; margin-inline: 3px; border-radius: 50%; background: var(--sky); color: var(--brand); }
 .done-ico svg { width: 17px; height: 17px; stroke-width: 2.8; }
 .bought-row b { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+
+/* Liste: heute gekauft (durchgestrichen), offen seit Tagen */
+.bought h2 { display: flex; align-items: center; gap: 8px; }
+.bought h2 small { margin-inline-start: auto; font-family: var(--body); font-size: 13px; font-weight: 600; }
+.bought .bought-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.log-link { margin-top: 6px; font-size: 13px; }
+.row-pending { justify-self: start; margin-top: 3px; padding: 1px 7px; border-radius: 5px; background: var(--gold-soft); color: var(--crust); font-size: 12.5px; font-weight: 600; }

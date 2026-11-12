@@ -97,7 +97,6 @@
   const openRequests = () => S.requests.filter(r => r.st === 'open');
   const openMap = () => new Map(openRequests().map(r => [r.item, r]));
   const plain = s => String(s).replace(/­/g, '');   // Trennstellen raus
-  const money = p => new Intl.NumberFormat(LOCALE[lang], { style: 'currency', currency: 'EUR' }).format(p);
   const byUrgent = (a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || a.at - b.at;
   const norm = s => plain(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss');
 
@@ -310,27 +309,25 @@
         h('span', { class: 'opt-go', html: ICON.chev })));
     }
 
-    const since = Date.now() - 3 * 864e5;
-    const done = S.requests.filter(r => r.st === 'done' && r.doneAt > since && itemById(r.item))
-      .sort((a, b) => b.doneAt - a.doneAt).slice(0, 25);
+    // Gekauftes bleibt nur heute hier (durchgestrichen), ab morgen steht es nur noch im Kalender
+    const tk = todayKey();
+    const done = S.requests.filter(r => r.st === 'done' && dkey(new Date(r.doneAt)) === tk && itemById(r.item))
+      .sort((a, b) => b.doneAt - a.doneAt);
     const bought = $('#bought'); bought.replaceChildren();
     if (done.length) {
-      bought.append(h('h2', null, t('lastBought')), h('div', { class: 'done-list' }, done.map(r => {
+      bought.append(h('h2', null, t('boughtToday'), h('small', null, num(done.length))), h('div', { class: 'done-list' }, done.map(r => {
         const it = itemById(r.item);
-        return h('div', { class: 'done-row' }, pic(it),
+        return h('div', { class: 'done-row bought-row' }, h('span', { class: 'done-ico', html: ICON.check }),
           h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
             h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), when(r.doneAt)].join(' · '))),
-          h('div', { class: 'done-btns' },
-            priceBtn(r, it),
-            h('button', { type: 'button', onclick: () => reopen(r, it) }, t('backOnList'))));
-      })));
+          h('button', { type: 'button', onclick: () => reopen(r, it) }, t('backOnList')));
+      })),
+      h('button', { type: 'button', class: 'link-btn log-link', onclick: () => { selDay = tk; calMonth = thisMonth(); setView('cal'); } }, t('boughtTodayHint')));
     }
   }
 
-  function priceBtn(r, it) {
-    return h('button', { type: 'button', class: 'price-btn' + (r.price != null ? ' has' : ''), onclick: () => openPrice(r, it) },
-      r.price != null ? money(r.price) : t('addPrice'));
-  }
+  // seit wie vielen Kalendertagen steht etwas schon offen auf der Liste?
+  const daysOpen = r => Math.round((fromKey(todayKey()) - fromKey(dkey(new Date(r.at)))) / 864e5);
 
   function listRow(r, it) {
     const row = h('div', { class: 'row' + (r.urgent ? ' urgent' : '') + (r.nf ? ' nf' : ''), 'data-cat': it.cat });
@@ -342,6 +339,7 @@
           deName(it) ? h('span', { class: 'row-de' }, deName(it)) : null,
           r.nf ? h('span', { class: 'row-nf' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
           r.note ? h('span', { class: 'row-note' }, r.note) : null,
+          daysOpen(r) > 0 ? h('span', { class: 'row-pending' }, t(daysOpen(r) === 1 ? 'pending1' : 'pendingN', { n: num(daysOpen(r)) })) : null,
           h('span', { class: 'row-meta' }, [r.by, when(r.upd || r.at), r.plan ? t('fromPlan') : ''].filter(Boolean).join(' · '))),
         h('span', { class: 'row-qty' }, h('b', null, num(r.qty)), h('span', null, unitOf(r.unit)))),
       h('button', { type: 'button', class: 'tick', 'aria-label': `${t('markBought')}: ${nameOf(it)}`, html: ICON.check, onclick: () => markDone(r, it, row) }));
@@ -353,38 +351,10 @@
     row.classList.add('leaving');
     try {
       await post('/done', { id: r.id, by: me });
+      histCache.clear();
       toast(t('boughtToast', { name: nameOf(it) }),
-        t('addPrice'), () => openPrice({ ...r, st: 'done' }, it),
-        t('undo'), () => post('/reopen', { id: r.id, by: me }).catch(() => toast(t('error'))));
+        t('undo'), () => post('/reopen', { id: r.id, by: me }).then(() => histCache.clear()).catch(() => toast(t('error'))));
     } catch { row.classList.remove('leaving'); toast(t('error')); }
-  }
-
-  // Preis nachtragen (Gesamtbetrag dieses Einkaufs)
-  function openPrice(r, it) {
-    const inp = h('input', { class: 'qty-in price-in', id: 'f-price', type: 'text', inputmode: 'decimal', autocomplete: 'off',
-      value: r.price != null ? num(r.price) : '', placeholder: '0,00', 'aria-label': t('priceTitle') });
-    const err = h('p', { class: 'err', role: 'alert' });
-    async function save(clear) {
-      const v = clear ? null : parseNum(inp.value);
-      if (!clear && !(v >= 0)) { err.textContent = t('error'); inp.focus(); return; }
-      try {
-        await post('/price', { id: r.id, price: v });
-        histCache.clear();
-        closeSheet(); toast(t('saved'));
-        render();
-      } catch { err.textContent = t('error'); }
-    }
-    openSheet(
-      h('div', { class: 's-head' }, pic(it), h('div', null, h('h2', { id: 'sheet-h' }, nameOf(it)), h('p', null, qtyText(r)))),
-      h('label', { class: 'lbl', for: 'f-price' }, t('priceTitle')),
-      h('div', { class: 'price-box' }, inp, h('b', { 'aria-hidden': 'true' }, '€')),
-      h('p', { class: 's-lead' }, t('priceLead', { qty: qtyText(r) })),
-      err,
-      h('div', { class: 'actions' },
-        h('button', { type: 'button', class: 'btn primary', onclick: () => save(false) }, t('save')),
-        r.price != null ? h('button', { type: 'button', class: 'btn ghost full', onclick: () => save(true) }, t('removePrice')) : null));
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(false); });
-    setTimeout(() => inp.focus(), 320);
   }
   async function reopen(r, it) {
     try { await post('/reopen', { id: r.id, by: me }); toast(t('addedToast', { name: nameOf(it) })); } catch { toast(t('error')); }
@@ -792,8 +762,6 @@
     for (const r of reqs) { const k = dkey(new Date(r.doneAt)); (m.get(k) || m.set(k, []).get(k)).push(r); }
     return m;
   };
-  const sumPrice = rows => rows.reduce((s, r) => s + (r.price || 0), 0);
-  const moneyShort = p => new Intl.NumberFormat(LOCALE[lang], { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(p);
   // Wochentagsnamen ab Montag (1. Jan. 2024 war ein Montag)
   const weekdays = (style = 'narrow') => [...Array(7)].map((_, i) => new Intl.DateTimeFormat(LOCALE[lang], { weekday: style }).format(new Date(2024, 0, 1 + i)));
 
@@ -826,11 +794,11 @@
     for (let i = 0; i < lead; i++) cells.push(h('span', { class: 'cal-d empty', 'aria-hidden': 'true' }));
     for (let d = 1; d <= days; d++) {
       const k = dkey(new Date(mo.y, mo.m, d));
-      const b = bought.get(k) || [], spend = sumPrice(b), np = plansOn(k).length;
+      const b = bought.get(k) || [], np = plansOn(k).length;
       const ne = k > tk ? expectedOn(k).length : 0;
-      const mark = spend ? moneyShort(spend) : b.length ? `${num(b.length)}×` : '';
+      const mark = b.length ? `${num(b.length)}×` : '';
       const label = [fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }),
-        b.length ? t(b.length === 1 ? 'buys1' : 'buysN', { n: b.length }) : '', spend ? money(spend) : '',
+        b.length ? t(b.length === 1 ? 'buys1' : 'buysN', { n: b.length }) : '',
         np ? t('plannedN', { n: np }) : '', ne ? t('expectedN', { n: ne }) : ''].filter(Boolean).join(' · ');
       cells.push(h('button', {
         type: 'button', 'aria-label': label, 'aria-pressed': String(k === selDay),
@@ -847,7 +815,7 @@
       h('p', { class: 'cal-key' },
         h('span', null, h('i', { class: 'pl' }, '2'), t('keyPlanned')),
         h('span', null, h('i', { class: 'ex' }), t('keyExpected')),
-        h('span', null, h('b', null, '€'), t('keyBought'))));
+        h('span', null, h('b', null, `${num(3)}×`), t('keyBought'))));
   }
 
   // Alles, was zu Tag k gehört: eingeplant für k, an k auf die Liste gekommen,
@@ -870,8 +838,7 @@
     try {
       await post('/done', { id: r.id, by: me });
       histCache.clear(); render();
-      toast(t('boughtToast', { name: nameOf(it) }), t('addPrice'), () => openPrice({ ...r, st: 'done' }, it),
-        t('undo'), () => post('/reopen', { id: r.id, by: me }).then(() => { histCache.clear(); render(); }).catch(() => toast(t('error'))));
+      toast(t('boughtToast', { name: nameOf(it) }), t('undo'), () => post('/reopen', { id: r.id, by: me }).then(() => { histCache.clear(); render(); }).catch(() => toast(t('error'))));
     } catch { toast(t('error')); }
   }
   async function buyPlan(p, it) {
@@ -889,13 +856,11 @@
     const { open, done } = dayRequests(k, monthReqs);
     const plans = plansOn(k);
     const exp = past ? [] : expectedOn(k);
-    const sum = sumPrice(done.filter(r => dkey(new Date(r.doneAt)) === k));
     const total = plans.length + open.length + done.length;
     const box = h('section', { class: 'day-panel', id: 'day-panel', 'aria-labelledby': 'day-h' },
       h('h2', { class: 'day-h', id: 'day-h' },
         h('span', null, (isToday ? `${t('today')} · ` : k === addD(tk, 1) ? `${t('tomorrow')} · ` : '')
-          + fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })),
-        sum ? h('b', null, money(sum)) : null));
+          + fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))));
 
     if (total) {
       const pct = Math.round(done.length / total * 100);
@@ -941,8 +906,7 @@
           return h('div', { class: 'done-row bought-row' },
             h('span', { class: 'done-ico', html: ICON.check }),
             h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
-              h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), dd === k ? time : fmtDate(dd)].join(' · '))),
-            priceBtn(r, it));
+              h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), dd === k ? time : fmtDate(dd)].join(' · '))));
         })));
     }
 
@@ -1030,9 +994,7 @@
     const nowD = new Date(), running = mo.y === nowD.getFullYear() && mo.m === nowD.getMonth();
     if (running) prev = prev.filter(r => new Date(r.doneAt).getDate() <= nowD.getDate());
     const vs = running ? t('vsPrevPart', { m: pm, d: num(nowD.getDate()) }) : t('vsPrev', { m: pm });
-    const total = sumPrice(reqs), prevTotal = sumPrice(prev);
-    const priced = total > 0;
-    const noPrice = reqs.filter(r => r.price == null).length;
+    const kinds = new Set(reqs.map(r => r.item)).size, prevKinds = new Set(prev.map(r => r.item)).size;
     const urgentN = reqs.filter(r => r.urgent).length;
     const wait = median(reqs.filter(r => r.doneAt > r.at).map(r => r.doneAt - r.at));
     const prevWait = median(prev.filter(r => r.doneAt > r.at).map(r => r.doneAt - r.at));
@@ -1041,23 +1003,20 @@
     const tile = (label, value, sub, main) => h('div', { class: 'tile-s' + (main ? ' main' : '') }, h('span', null, label), h('b', null, value), sub);
 
     box.append(h('div', { class: 'tiles' },
-      tile(t('spent'), money(total), priced ? dEl(delta(total, prevTotal)) : h('small', { class: 'delta' }, t('noPricesYet')), true),
-      tile(t('purchases'), num(reqs.length), dEl(delta(reqs.length, prev.length))),
+      tile(t('purchases'), num(reqs.length), dEl(delta(reqs.length, prev.length)), true),
+      tile(t('itemsN'), num(kinds), dEl(delta(kinds, prevKinds))),
       tile(t('timeToBuy'), wait ? fmtDur(wait) : '–', prevWait ? h('small', { class: 'delta' }, `${vs}: ${fmtDur(prevWait)}`) : null),
       tile(t('urgent'), num(urgentN), h('small', { class: 'delta' }, t('urgentShare', { p: num(Math.round(urgentN / reqs.length * 100)) })))));
-    if (noPrice && priced) box.append(h('p', { class: 'hint' }, t('noPrice', { n: noPrice })));
-
     // Pro Tag
     const days = new Date(mo.y, mo.m + 1, 0).getDate();
     const per = byDay(reqs), tk = todayKey();
     const dayRows = [...Array(days)].map((_, i) => {
-      const k = dkey(new Date(mo.y, mo.m, i + 1)), rows = per.get(k) || [], s = sumPrice(rows);
-      const v = priced ? s : rows.length;
-      return { v, cur: k === tk, label: fmtDate(k), tick: (i + 1) % 5 === 0 || i === 0 ? num(i + 1) : '',
-        text: rows.length ? [priced ? money(s) : '', t(rows.length === 1 ? 'buys1' : 'buysN', { n: rows.length })].filter(Boolean).join(' · ') : t('nothingBought') };
+      const k = dkey(new Date(mo.y, mo.m, i + 1)), rows = per.get(k) || [];
+      return { v: rows.length, cur: k === tk, label: fmtDate(k), tick: (i + 1) % 5 === 0 || i === 0 ? num(i + 1) : '',
+        text: rows.length ? t(rows.length === 1 ? 'buys1' : 'buysN', { n: rows.length }) : t('nothingBought') };
     });
-    box.append(h('h2', { class: 'h-sec' }, priced ? t('chartSpendDay') : t('chartBuysDay')),
-      columns(dayRows, priced ? moneyShort : num, dayRows.findIndex(r => r.cur && r.v)));
+    box.append(h('h2', { class: 'h-sec' }, t('chartBuysDay')),
+      columns(dayRows, num, dayRows.findIndex(r => r.cur && r.v)));
 
     // Wochentag, an dem etwas auf die Liste kam
     const wd = [0, 0, 0, 0, 0, 0, 0];
@@ -1069,23 +1028,23 @@
     // Kategorien
     const cats = S.cats.map(c => {
       const rows = reqs.filter(r => itemById(r.item)?.cat === c.id);
-      return { name: c.name[lang] || c.name.de, n: rows.length, s: sumPrice(rows) };
-    }).filter(c => c.n).sort((a, b) => (priced ? b.s - a.s : 0) || b.n - a.n);
-    const cmax = Math.max(...cats.map(c => (priced ? c.s : c.n)));
+      return { name: c.name[lang] || c.name.de, n: rows.length, kinds: new Set(rows.map(r => r.item)).size };
+    }).filter(c => c.n).sort((a, b) => b.n - a.n);
+    const cmax = Math.max(...cats.map(c => c.n));
     box.append(h('h2', { class: 'h-sec' }, t('chartCat')),
       h('div', { class: 'hbars' }, cats.map(c => {
         const bar = h('i');
-        bar.style.width = `${Math.max(2, (priced ? c.s : c.n) / cmax * 100)}%`;
+        bar.style.width = `${Math.max(2, c.n / cmax * 100)}%`;
         return h('div', { class: 'hbar' }, h('span', { class: 'hbar-l' }, c.name),
-          h('span', { class: 'hbar-t' }, bar), h('b', null, priced ? money(c.s) : num(c.n)),
-          h('small', null, t(c.n === 1 ? 'buys1' : 'buysN', { n: c.n })));
+          h('span', { class: 'hbar-t' }, bar), h('b', null, `${num(c.n)}×`),
+          h('small', null, t(c.kinds === 1 ? 'kinds1' : 'kindsN', { n: num(c.kinds) })));
       })));
 
     // Ranglisten
     const perItem = new Map();
     for (const r of reqs) {
-      const p = perItem.get(r.item) || { item: r.item, n: 0, spent: 0, qty: 0, units: new Set(), times: [] };
-      p.n += 1; p.spent += r.price || 0; p.qty += r.qty; p.units.add(r.unit); p.times.push(r.doneAt);
+      const p = perItem.get(r.item) || { item: r.item, n: 0, qty: 0, units: new Set(), times: [] };
+      p.n += 1; p.qty += r.qty; p.units.add(r.unit); p.times.push(r.doneAt);
       perItem.set(r.item, p);
     }
     const stats = [...perItem.values()];
@@ -1100,10 +1059,7 @@
         h('strong', null, right));
     };
     box.append(h('h2', { class: 'h-sec' }, t('reportTop')),
-      h('div', { class: 'stat-list' }, stats.sort((a, b) => b.n - a.n || b.spent - a.spent).slice(0, 10).map(p => statRow(p, `${num(p.n)}×`))));
-    const costly = stats.filter(p => p.spent > 0).sort((a, b) => b.spent - a.spent).slice(0, 10);
-    if (costly.length) box.append(h('h2', { class: 'h-sec' }, t('reportCost')),
-      h('div', { class: 'stat-list' }, costly.map(p => statRow(p, money(p.spent)))));
+      h('div', { class: 'stat-list' }, stats.sort((a, b) => b.n - a.n).slice(0, 10).map(p => statRow(p, `${num(p.n)}×`))));
     box.append(h('button', { type: 'button', class: 'plan-link', onclick: () => { calMonth = { ...mo }; setView('cal'); } },
       h('span', { class: 'opt-ico', html: ICON.cal }), h('span', null, h('b', null, t('archiveHint')), h('small', null, monthLabel(mo))),
       h('span', { class: 'opt-go', html: ICON.chev })));
