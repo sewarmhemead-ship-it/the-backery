@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { CATEGORIES, UNITS, DEFAULT_ITEMS, PUSH_TEXT, LANGS } from './catalog.mjs';
 import { loadVapid, sendPush, pushAllowed } from './push.mjs';
 import { buildList, sendMail, mailReady, validEmail } from './mail.mjs';
+import { vienna, addDays, validDay, forecast } from './plan.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || path.join(ROOT, 'site-v2'));
@@ -31,6 +32,9 @@ const MAX_REQUESTS = 30000;
 const RECENT_DONE_DAYS = 3;          // so viel Gekauftes schickt /state mit
 const TOP_DAYS = 60, TOP_N = 8;      // „Am häufigsten“: die letzten 60 Tage
 const DAILY_HOUR = 20;               // tägliche Zusammenfassung, Wiener Zeit
+// Eingeplantes kommt an seinem Tag ab dieser Stunde (Wien) auf die Liste
+const PLAN_HOUR = Number.isFinite(Number(process.env.PLAN_HOUR)) && process.env.PLAN_HOUR !== '' ? Number(process.env.PLAN_HOUR) : 5;
+const PLAN_AHEAD_DAYS = 120, MAX_PLANS = 1000;
 const MAX_SUBS = 200;
 const MAX_CUSTOM_ITEMS = 300;
 const MAX_JSON = 16 * 1024;
@@ -42,7 +46,7 @@ const DEFAULT_IDS = new Set(DEFAULT_ITEMS.map(i => i.id));
 // ---------------------------------------------------------------- Daten
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null }; }
+function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null, plans: [] }; }
 
 function loadDb() {
   try {
@@ -54,6 +58,7 @@ function loadDb() {
       requests: Array.isArray(raw.requests) ? raw.requests : [],
       subs: Array.isArray(raw.subs) ? raw.subs : [],
       lastDaily: typeof raw.lastDaily === 'string' ? raw.lastDaily : '',
+      plans: Array.isArray(raw.plans) ? raw.plans : [],
       origin: typeof raw.origin === 'string' ? raw.origin : '',
       boss: raw.boss && typeof raw.boss === 'object' ? raw.boss : null,
     };
@@ -123,6 +128,8 @@ function state() {
     v: db.v, items: allItems(), cats: CATEGORIES, units: UNITS, top: topItems(),
     requests: db.requests.filter(r => r.st === 'open' || r.doneAt > since).map(publicReq),
     boss: db.boss, mail: mailReady(),
+    plans: db.plans.map(publicReq), today: vienna().day, planHour: PLAN_HOUR,
+    forecast: forecast(db.requests, { skip: new Set(db.requests.filter(r => r.st === 'open').map(r => r.item)) }),
   };
 }
 const publicReq = ({ dev, ...r }) => r;
@@ -221,6 +228,48 @@ const actions = {
     };
     rememberOrigin(req);
   },
+  // Für einen bestimmten Tag einplanen (z. B. morgen 20 Croissants)
+  plan(b) {
+    const item = clean(b.item, 40);
+    if (!itemExists(item)) throw new Bad('unknown item');
+    const qty = qtyOf(b.qty); if (!qty) throw new Bad('bad qty');
+    const unit = UNITS[b.unit] ? b.unit : null; if (!unit) throw new Bad('bad unit');
+    const date = String(b.date || '');
+    const today = vienna().day;
+    if (!validDay(date) || date < today || date > addDays(today, PLAN_AHEAD_DAYS)) throw new Bad('bad date');
+    const note = clean(b.note, 200), by = clean(b.by, 40), dev = clean(b.dev, 40), now = Date.now();
+    const same = db.plans.find(p => p.item === item && p.date === date);
+    if (same) Object.assign(same, { qty, unit, note, by, dev, upd: now });
+    else {
+      if (db.plans.length >= MAX_PLANS) throw new Bad('too many plans');
+      db.plans.push({ id: newId('p'), item, qty, unit, note, by, dev, date, at: now, upd: now });
+    }
+    activatePlans();
+  },
+  // Eingeplantes schon vorher gekauft: direkt als gekauft ablegen (bleibt im Kalender, durchgestrichen)
+  plandone(b) {
+    const i = db.plans.findIndex(p => p.id === b.id);
+    if (i < 0) throw new Bad('not found', 404);
+    const [p] = db.plans.splice(i, 1);
+    const now = Date.now();
+    db.requests.push({ id: newId('r'), item: p.item, qty: p.qty, unit: p.unit, note: p.note, by: p.by, at: now, upd: now,
+      st: 'done', urgent: false, doneAt: now, doneBy: clean(b.by, 40), plan: p.date });
+  },
+  // … rückgängig: wieder als Plan für denselben Tag
+  undoplan(b) {
+    const i = db.requests.findIndex(r => r.id === b.id && r.st === 'done' && r.plan);
+    if (i < 0) throw new Bad('not found', 404);
+    const [r] = db.requests.splice(i, 1);
+    if (!db.plans.some(p => p.item === r.item && p.date === r.plan)) {
+      db.plans.push({ id: newId('p'), item: r.item, qty: r.qty, unit: r.unit, note: r.note, by: r.by, date: r.plan, at: r.at, upd: Date.now() });
+    }
+    activatePlans();
+  },
+  unplan(b) {
+    const i = db.plans.findIndex(p => p.id === b.id);
+    if (i < 0) throw new Bad('not found', 404);
+    db.plans.splice(i, 1);
+  },
   unsubscribe(b) {
     const endpoint = String(b.endpoint || ''), dev = clean(b.dev, 40);
     db.subs = db.subs.filter(x => x.endpoint !== endpoint && (!dev || x.dev !== dev));
@@ -315,8 +364,9 @@ async function mailList() {
   if (!b?.email) throw new Bad('no recipient');
   if (!mailReady()) throw new Bad('mail not configured', 503);
   const open = db.requests.filter(r => r.st === 'open').sort((x, y) => x.at - y.at);
-  if (!open.length) throw new Bad('list empty');
-  await sendMail(b.email, buildList(open, allItems(), b.lang, db.origin));
+  if (!open.length && !db.plans.some(p => p.date === addDays(vienna().day, 1))) throw new Bad('list empty');
+  const tomorrow = addDays(vienna().day, 1);
+  await sendMail(b.email, buildList(open, allItems(), b.lang, db.origin, db.plans.filter(p => p.date === tomorrow)));
   lastMail = Date.now();
 }
 
@@ -332,8 +382,9 @@ function dailyCheck() {
   if (hour < DAILY_HOUR || db.lastDaily === day) return;
   db.lastDaily = day; changed();
   const open = db.requests.filter(r => r.st === 'open');
+  const planned = db.plans.some(p => p.date === addDays(day, 1));
+  if ((open.length || planned) && db.boss?.auto && db.boss.email && mailReady()) mailList().catch(e => console.error('daily mail failed', e.message));
   if (!open.length) return;
-  if (db.boss?.auto && db.boss.email && mailReady()) mailList().catch(e => console.error('daily mail failed', e.message));
   for (const s of db.subs.filter(x => x.daily)) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.de;
     const names = open.slice(0, 12).map(r => lineFor(r, s.lang)).join(', ') + (open.length > 12 ? ' …' : '');
@@ -341,6 +392,32 @@ function dailyCheck() {
   }
 }
 setInterval(dailyCheck, 60e3).unref();
+
+// Eingeplantes, dessen Tag gekommen ist, auf die Einkaufsliste setzen.
+// Steht der Artikel schon drauf (gleiche Einheit), gilt die größere Menge.
+function activatePlans() {
+  const { day, hour } = vienna();
+  const due = db.plans.filter(p => p.date < day || (p.date === day && hour >= PLAN_HOUR));
+  if (!due.length) return false;
+  db.plans = db.plans.filter(p => !due.includes(p));
+  const now = Date.now();
+  for (const p of due) {
+    if (!itemExists(p.item)) continue;
+    const open = db.requests.find(r => r.st === 'open' && r.item === p.item);
+    if (open) {
+      if (open.unit === p.unit && p.qty > open.qty) Object.assign(open, { qty: p.qty, upd: now });
+      if (p.note && !open.note.includes(p.note)) open.note = clean(`${open.note} ${p.note}`, 200);
+      open.plan = p.date;
+      continue;
+    }
+    const r = { id: newId('r'), item: p.item, qty: p.qty, unit: p.unit, note: p.note, by: p.by, at: now, upd: now, st: 'open', urgent: false, dev: p.dev, plan: p.date };
+    db.requests.push(r);
+    queueNotify(r, false);
+  }
+  return true;
+}
+setInterval(() => { if (activatePlans()) changed(); }, 60e3).unref();
+if (activatePlans()) changed();
 
 // ---------------------------------------------------------------- HTTP-Helfer
 const SEC_HEADERS = {
@@ -458,7 +535,7 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
-  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss)$/);
+  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss|plan|unplan|plandone|undoplan)$/);
   if (am && req.method === 'POST') {
     if (!String(req.headers['content-type'] || '').includes('application/json')) throw new Bad('json only', 415);
     let body;

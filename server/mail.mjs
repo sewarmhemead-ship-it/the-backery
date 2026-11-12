@@ -16,7 +16,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const plain = s => String(s).replace(/­/g, '');
 
 // open: offene Einträge, items: alle Artikel (mit Namen in allen Sprachen)
-export function buildList(open, items, lang, origin) {
+export function buildList(open, items, lang, origin, planned = []) {
   const L = MAIL_TEXT[lang] || MAIL_TEXT.de;
   const byId = new Map(items.map(i => [i.id, i]));
   const name = (it, l) => plain(it.name[l] || it.name.de || Object.values(it.name)[0] || '?');
@@ -33,6 +33,8 @@ export function buildList(open, items, lang, origin) {
     const g = rows.filter(x => !x.r.urgent && x.it.cat === c.id);
     if (g.length) groups.push({ title: c.name[lang] || c.name.de, rows: g });
   }
+  const plan = planned.filter(p => byId.has(p.item)).map(p => ({ r: p, it: byId.get(p.item), name: name(byId.get(p.item), lang), de: '', qty: qty(p) }));
+  if (plan.length) groups.push({ title: L.tomorrow, rows: plan, later: true });
   const n = rows.length;
   const link = origin ? `${origin}/einkauf/#liste` : '';
   const date = new Intl.DateTimeFormat({ de: 'de-AT', en: 'en-GB', it: 'it-IT', ar: 'ar-u-nu-latn' }[lang] || 'de-AT',
@@ -47,6 +49,7 @@ export function buildList(open, items, lang, origin) {
     }
   }
   if (link) text.push('', `${L.open}: ${link}`);
+  if (!rows.length && plan.length) text.splice(2, 0, '', L.nothingNow);
 
   const dir = lang === 'ar' ? 'rtl' : 'ltr', end = lang === 'ar' ? 'left' : 'right', start = lang === 'ar' ? 'right' : 'left';
   const html = `<!doctype html><html lang="${lang}" dir="${dir}"><body style="margin:0;padding:24px 12px;background:#EEF4F6;font-family:Arial,Helvetica,sans-serif;color:#2A1218">

@@ -46,6 +46,7 @@
       <p class="lead" data-t="needLead"></p>
     </div>
     <div class="toolbar">
+      <div class="plan-bar" id="plan-bar" hidden></div>
       <label class="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
         <span class="sr" data-t="search"></span>
@@ -76,19 +77,35 @@
     <div id="bought" class="bought"></div>
   </section>
 
-  <!-- 3. Verlauf: Monatsbericht + Archiv -->
-  <section class="view" id="view-history" aria-labelledby="hist-h" hidden>
+  <!-- 3. Kalender: Eingeplantes, Vorhersage, Gekauftes pro Tag -->
+  <section class="view" id="view-cal" aria-labelledby="cal-h" hidden>
     <div class="intro">
       <div class="intro-row">
-      <h1 class="display" id="hist-h" data-t="histTitle">Verlauf</h1>
-      <div class="month-nav">
-        <button type="button" class="step small" id="m-prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span class="sr" data-t="prevMonth"></span></button>
-        <b id="m-label"></b>
-        <button type="button" class="step small" id="m-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sr" data-t="nextMonth"></span></button>
+        <h1 class="display" id="cal-h" data-t="calTitle">Kalender</h1>
+        <div class="month-nav">
+          <button type="button" class="step small" id="c-prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span class="sr" data-t="prevMonth"></span></button>
+          <b id="c-label"></b>
+          <button type="button" class="step small" id="c-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sr" data-t="nextMonth"></span></button>
+        </div>
       </div>
+      <p class="lead" id="cal-lead"></p>
+    </div>
+    <div id="cal" class="history"></div>
+  </section>
+
+  <!-- 4. Statistik -->
+  <section class="view" id="view-stats" aria-labelledby="stats-h" hidden>
+    <div class="intro">
+      <div class="intro-row">
+        <h1 class="display" id="stats-h" data-t="statsTitle">Statistik</h1>
+        <div class="month-nav">
+          <button type="button" class="step small" id="s-prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span class="sr" data-t="prevMonth"></span></button>
+          <b id="s-label"></b>
+          <button type="button" class="step small" id="s-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sr" data-t="nextMonth"></span></button>
+        </div>
       </div>
     </div>
-    <div id="history" class="history"></div>
+    <div id="stats" class="history"></div>
   </section>
 </main>
 
@@ -102,9 +119,14 @@
     <span data-t="tabList">Einkaufsliste</span>
     <b class="badge" id="badge" hidden></b>
   </button>
-  <button type="button" data-view="history">
+  <button type="button" data-view="cal">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01"/></svg>
+    <span data-t="tabCal">Kalender</span>
+    <b class="badge soft" id="badge-cal" hidden></b>
+  </button>
+  <button type="button" data-view="stats">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
-    <span data-t="tabHistory">Verlauf</span>
+    <span data-t="tabStats">Statistik</span>
   </button>
 </nav>
 

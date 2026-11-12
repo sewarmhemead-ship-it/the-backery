@@ -17,14 +17,17 @@
 
   let S = null;                 // Zustand vom Server
   let lang = pickLang();
-  const HASH = { list: '#liste', history: '#verlauf' };
-  let view = location.hash === '#liste' ? 'list' : location.hash === '#verlauf' ? 'history' : 'need';
+  const HASH = { list: '#liste', cal: '#kalender', stats: '#statistik' };
+  let view = { '#liste': 'list', '#kalender': 'cal', '#statistik': 'stats', '#verlauf': 'stats' }[location.hash] || 'need';
   let pin = store.get('tb-ek-pin') || '';
   let me = store.get('tb-ek-name') || '';
   // Geräte-Kennung: damit man nicht über die eigenen Einträge benachrichtigt wird
   let dev = store.get('tb-ek-dev');
   if (!dev) { dev = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('tb-ek-dev', dev); }
-  let month = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })();
+  const thisMonth = () => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; };
+  let calMonth = thisMonth(), statMonth = thisMonth();
+  let selDay = null;            // im Kalender gewählter Tag, sonst morgen
+  let planDate = null;          // „Einplanen für …“: Artikel antippen plant für diesen Tag
   const histCache = new Map();  // "2026-10" → { v, requests }
   let pushKey = null, pushSub = null;
   let query = '';
@@ -69,6 +72,8 @@
     mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7.5 8.5 6 8.5-6"/></svg>',
     share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
     chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   };
 
@@ -95,6 +100,28 @@
   const money = p => new Intl.NumberFormat(LOCALE[lang], { style: 'currency', currency: 'EUR' }).format(p);
   const byUrgent = (a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || a.at - b.at;
   const norm = s => plain(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss');
+
+  // Kalendertage als "2026-11-13" (Ortszeit des Handys = Wien)
+  const pad = n => String(n).padStart(2, '0');
+  const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fromKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addD = (k, n) => { const d = fromKey(k); d.setDate(d.getDate() + n); return dkey(d); };
+  const todayKey = () => dkey(new Date());
+  const fmtDate = (k, o = { weekday: 'short', day: 'numeric', month: 'numeric' }) => new Intl.DateTimeFormat(LOCALE[lang], o).format(fromKey(k));
+  // für Sätze wie „Für morgen einplanen“ (klein, wo die Sprache das will)
+  const dayName = k => (k === todayKey() ? t('todayMid') : k === addD(todayKey(), 1) ? t('tomorrowMid') : fmtDate(k));
+  const monthLabel = mo => new Intl.DateTimeFormat(LOCALE[lang], { month: 'long', year: 'numeric' }).format(new Date(mo.y, mo.m, 1));
+  const plansOn = k => (S.plans || []).filter(p => p.date === k && itemById(p.item));
+  const planFor = (item, k) => (S.plans || []).find(p => p.item === item && p.date === k);
+  const planHour = () => (S && Number.isFinite(S.planHour) ? S.planHour : 5);
+
+  // Was fehlt wahrscheinlich an Tag k? (Vorhersage vom Server, ohne was schon drauf/eingeplant ist)
+  function expectedOn(k) {
+    const tk = todayKey(), end = fromKey(addD(k, 1)).getTime(), open = openMap();
+    const planned = new Set((S.plans || []).filter(p => p.date >= tk).map(p => p.item));   // schon irgendwann eingeplant
+    return (S.forecast || []).filter(f => itemById(f.item) && !open.has(f.item) && !planned.has(f.item)
+      && (k <= addD(tk, 1) ? f.next < end : dkey(new Date(f.next)) === k));
+  }
 
   function when(ts) {
     const d = new Date(ts), now = new Date();
@@ -142,7 +169,8 @@
     renderStatic();
     renderNeed();
     renderList();
-    if (view === 'history') renderHistory();
+    if (view === 'cal') renderCal();
+    if (view === 'stats') renderStats();
   }
 
   function renderStatic() {
@@ -157,11 +185,15 @@
     });
     $('#view-need').hidden = view !== 'need';
     $('#view-list').hidden = view !== 'list';
-    $('#view-history').hidden = view !== 'history';
+    $('#view-cal').hidden = view !== 'cal';
+    $('#view-stats').hidden = view !== 'stats';
     renderBell();
     const n = openRequests().length;
     const badge = $('#badge');
     badge.hidden = n === 0; badge.textContent = n;
+    const nt = plansOn(addD(todayKey(), 1)).length;
+    const bc = $('#badge-cal');
+    bc.hidden = nt === 0; bc.textContent = nt;
     const who = $('#who');
     who.replaceChildren(h('span', { class: 'ico', html: ICON.user }), h('span', { class: 'txt' }, me || t('setName')));
     who.setAttribute('aria-label', me ? `${t('hello', { n: me })} · ${t('change')}` : t('whoAreYou'));
@@ -175,6 +207,17 @@
     const chips = $('#chips'); chips.replaceChildren();
     const cats = $('#cats'); cats.replaceChildren();
     let shown = 0;
+    if (planDate && planDate <= todayKey()) planDate = null;
+    const bar = $('#plan-bar');
+    bar.hidden = !planDate;
+    if (planDate) {
+      const n = plansOn(planDate).length;
+      bar.replaceChildren(
+        h('span', { class: 'plan-bar-ico', html: ICON.cal }),
+        h('span', { class: 'plan-bar-txt' }, h('b', null, t('planningFor', { day: dayName(planDate) })),
+          h('small', null, n ? t('plannedN', { n }) : t('planHint'))),
+        h('button', { type: 'button', class: 'btn primary', onclick: () => { selDay = planDate; planDate = null; setView('cal'); } }, t('planDone')));
+    }
 
     // „Am häufigsten“ oben, solange nicht gesucht wird
     const top = (S.top || []).map(itemById).filter(i => i && !i.hidden);
@@ -214,10 +257,12 @@
     // „Stangenbohnen / Weiße Bohnen“ → groß „Stangenbohnen“, klein „/ Weiße Bohnen“
     const full = nameOf(it);
     const m = full.match(/^(.+?)\s*\((.+)\)\s*$/) || full.match(/^(.+?)\s+(\/\s.+)$/);
+    // im Planungsmodus zeigt die Karte die eingeplante Menge statt der offenen
+    if (planDate) r = planFor(it.id, planDate) || null;
     return h('button', {
-      type: 'button', class: 'card' + (r ? ' on' : '') + (r?.urgent ? ' urgent' : '') + (it.hidden ? ' is-hidden' : ''), 'data-cat': it.cat,
-      'aria-label': nameOf(it) + (r ? ` · ${t('already')}: ${qtyText(r)}${r.urgent ? ` · ${t('urgent')}` : ''}` : ''),
-      onclick: () => openItem(it.id),
+      type: 'button', class: 'card' + (r ? ' on' : '') + (planDate && r ? ' planned' : '') + (!planDate && r?.urgent ? ' urgent' : '') + (it.hidden ? ' is-hidden' : ''), 'data-cat': it.cat,
+      'aria-label': nameOf(it) + (r ? ` · ${planDate ? t('plannedH') : t('already')}: ${qtyText(r)}${r.urgent ? ` · ${t('urgent')}` : ''}` : ''),
+      onclick: () => openItem(it.id, planDate ? { date: planDate } : {}),
     },
     pic(it),
     h('span', { class: 'card-txt' },
@@ -229,7 +274,9 @@
   function renderList() {
     const open = openRequests();
     $('#list-count').textContent = open.length === 1 ? t('count1') : open.length ? t('countN', { n: open.length }) : '';
-    $('#share').hidden = $('#print').hidden = !open.length;
+    const tomorrowPlans = plansOn(addD(todayKey(), 1));
+    $('#share').hidden = !open.length && !tomorrowPlans.length;
+    $('#print').hidden = !open.length;
     const list = $('#list'); list.replaceChildren();
 
     if (!open.length) {
@@ -253,6 +300,14 @@
           h('h2', { class: 'group-h' }, c.name[lang] || c.name.de, h('small', null, num(rows.length))),
           h('div', { class: 'rows' }, rows.map(r => listRow(r, itemById(r.item))))));
       }
+    }
+    // Hinweis auf morgen, damit niemand doppelt einkauft
+    if (tomorrowPlans.length) {
+      list.append(h('button', { type: 'button', class: 'plan-link', onclick: () => { selDay = addD(todayKey(), 1); setView('cal'); } },
+        h('span', { class: 'opt-ico', html: ICON.cal }),
+        h('span', null, h('b', null, t('plannedTomorrow')),
+          h('small', null, tomorrowPlans.slice(0, 4).map(p => nameOf(itemById(p.item))).join(', ') + (tomorrowPlans.length > 4 ? ' …' : ''))),
+        h('span', { class: 'opt-go', html: ICON.chev })));
     }
 
     const since = Date.now() - 3 * 864e5;
@@ -287,7 +342,7 @@
           deName(it) ? h('span', { class: 'row-de' }, deName(it)) : null,
           r.nf ? h('span', { class: 'row-nf' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
           r.note ? h('span', { class: 'row-note' }, r.note) : null,
-          h('span', { class: 'row-meta' }, [r.by, when(r.upd || r.at)].filter(Boolean).join(' · '))),
+          h('span', { class: 'row-meta' }, [r.by, when(r.upd || r.at), r.plan ? t('fromPlan') : ''].filter(Boolean).join(' · '))),
         h('span', { class: 'row-qty' }, h('b', null, num(r.qty)), h('span', null, unitOf(r.unit)))),
       h('button', { type: 'button', class: 'tick', 'aria-label': `${t('markBought')}: ${nameOf(it)}`, html: ICON.check, onclick: () => markDone(r, it, row) }));
     return row;
@@ -316,7 +371,7 @@
         await post('/price', { id: r.id, price: v });
         histCache.clear();
         closeSheet(); toast(t('saved'));
-        if (view === 'history') renderHistory(true);
+        render();
       } catch { err.textContent = t('error'); }
     }
     openSheet(
@@ -352,6 +407,12 @@
       if (!rows.length) continue;
       lines.push('', bold(c.name[lang] || c.name.de));
       rows.forEach(line);
+    }
+    if (!openRequests().length) lines.push('', t('empty'));
+    const planned = plansOn(addD(todayKey(), 1));
+    if (planned.length) {
+      lines.push('', bold(`📅 ${t('plannedTomorrow')}`));
+      planned.forEach(p => lines.push(`• ${nameOf(itemById(p.item))}: ${qtyText(p)}${p.note ? ` · ${p.note}` : ''}`));
     }
     lines.push('', `${t('shareOpen')}: ${location.origin}/einkauf/#liste`);
     return plain(lines.join('\n'));
@@ -391,7 +452,7 @@
     const who = [b.name, b.wa ? ltr('+' + b.wa) : '', b.email ? ltr(b.email) : ''].filter(Boolean);
     openSheet(
       h('h2', { class: 's-title', id: 'sheet-h' }, t('sendTitle')),
-      h('p', { class: 's-lead' }, t(openRequests().length === 1 ? 'count1' : 'countN', { n: openRequests().length })),
+      h('p', { class: 's-lead' }, openRequests().length ? t(openRequests().length === 1 ? 'count1' : 'countN', { n: openRequests().length }) : t('onlyPlanned')),
       h('div', { class: 'opts' },
         opt(ICON.chat, 'WhatsApp', b.wa ? [b.name, ltr('+' + b.wa)].filter(Boolean).join(' · ') : t('waPick'), viaWa),
         opt(ICON.mail, t('mailTitle'), b.email ? ltr(b.email) : t('mailAdd'), viaMail),
@@ -478,11 +539,28 @@
     if (f && f.value.trim()) { me = f.value.trim().slice(0, 40); store.set('tb-ek-name', me); }
   }
 
-  function openItem(id) {
+  // o.date: für diesen Tag einplanen statt jetzt auf die Liste
+  // o.qty / o.unit / o.note: vorausgefüllt (Vorhersage oder beim Umschalten von „Wann?“)
+  function openItem(id, o = {}) {
     const it = itemById(id); if (!it) return;
-    const r = openMap().get(id);
-    let unit = r ? r.unit : it.unit;
-    let qty = r ? r.qty : 1;
+    const tk = todayKey(), tomorrow = addD(tk, 1);
+    const date = o.date && o.date > tk ? o.date : null;   // null = jetzt
+    const r = date ? null : openMap().get(id);
+    const p = date ? planFor(id, date) : null;
+    const base = date ? p : r;
+    let unit = o.unit || base?.unit || it.unit;
+    let qty = o.qty ?? base?.qty ?? 1;
+
+    // Wann? Jetzt | Morgen | anderer Tag
+    const again = d => openItem(id, { date: d, qty: parseQty() || undefined, unit, note: note.value });
+    const dateIn = h('input', { type: 'date', class: 'seg-date', min: tomorrow, max: addD(tk, 120), value: date || '', 'aria-label': t('pickDate'),
+      onchange: () => { if (dateIn.value && dateIn.value > tk) again(dateIn.value); } });
+    const other = date && date !== tomorrow;
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': t('whenTitle') },
+      h('button', { type: 'button', 'aria-pressed': String(!date), onclick: () => { if (date) again(null); } }, t('now')),
+      h('button', { type: 'button', 'aria-pressed': String(date === tomorrow), onclick: () => { if (date !== tomorrow) again(tomorrow); } }, t('tomorrow')),
+      h('label', { class: 'seg-pick', 'aria-pressed': String(!!other), onclick: () => { try { dateIn.showPicker(); } catch { /* Handy öffnet selbst */ } } },
+        h('span', { html: ICON.cal }), h('span', null, other ? fmtDate(date) : t('otherDay')), dateIn));
 
     const qtyIn = h('input', { class: 'qty-in', id: 'f-qty', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: num(qty), 'aria-label': t('howMuch') });
     const parseQty = () => { const v = parseNum(qtyIn.value); return Number.isFinite(v) ? v : 0; };
@@ -494,7 +572,7 @@
     const markQuick = () => quick.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === parseQty())));
     qtyIn.addEventListener('input', markQuick);
     qtyIn.addEventListener('focus', () => qtyIn.select());
-    const note = h('input', { class: 'field', id: 'f-note', maxlength: 200, placeholder: t('notePh'), value: r?.note || '' });
+    const note = h('input', { class: 'field', id: 'f-note', maxlength: 200, placeholder: t('notePh'), value: o.note ?? base?.note ?? '' });
     const err = h('p', { class: 'err', role: 'alert' });
     let urgent = !!r?.urgent;
     const urgentBtn = h('button', { type: 'button', class: 'urgent-btn', 'aria-pressed': String(urgent),
@@ -505,6 +583,14 @@
       const v = parseQty();
       if (!(v > 0)) { err.textContent = t('badQty'); qtyIn.classList.remove('shake'); void qtyIn.offsetWidth; qtyIn.classList.add('shake'); qtyIn.focus(); return; }
       takeName();
+      if (date) {
+        try {
+          await post('/plan', { item: id, qty: v, unit, note: note.value, by: me, dev, date });
+          closeSheet();
+          toast(t('plannedToast', { name: nameOf(it), day: dayName(date) }));
+        } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+        return;
+      }
       try {
         await post('/need', { item: id, qty: v, unit, note: note.value, by: me, urgent, dev });
         closeSheet();
@@ -518,6 +604,13 @@
         toast(r.nf ? t('saved') : t('nfToast', { name: nameOf(it) }));
       } catch { err.textContent = t('error'); }
     }
+    async function unplan() {
+      try {
+        await post('/unplan', { id: p.id }); closeSheet();
+        toast(t('unplannedToast', { name: nameOf(it) }), t('undo'),
+          () => post('/plan', { item: id, qty: p.qty, unit: p.unit, note: p.note, by: p.by, dev, date }).catch(() => toast(t('error'))));
+      } catch { err.textContent = t('error'); }
+    }
     async function remove() {
       try { await post('/remove', { id: r.id, by: me }); closeSheet(); toast(t('removedToast', { name: nameOf(it) }), t('undo'), () => post('/need', { item: id, qty: r.qty, unit: r.unit, note: r.note, by: r.by, urgent: r.urgent, dev }).catch(() => toast(t('error')))); }
       catch { err.textContent = t('error'); }
@@ -528,18 +621,23 @@
         h('h2', { id: 'sheet-h' }, nameOf(it)), deName(it) ? h('p', null, deName(it)) : null)),
       r ? h('p', { class: 'already' }, `${t('already')}: `, h('b', null, qtyText(r)), [r.by, when(r.upd || r.at)].filter(Boolean).map(x => ` · ${x}`).join('')) : null,
       r?.nf ? h('p', { class: 'already nf-note' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
+      h('span', { class: 'lbl' }, t('whenTitle')), seg,
+      date ? h('p', { class: 'help' }, t('planInfo', { day: dayName(date), h: planHour() })) : null,
+      p ? h('p', { class: 'already plan-note' }, `${t('plannedH')}: `, h('b', null, qtyText(p)), [p.by].filter(Boolean).map(x => ` · ${x}`).join('')) : null,
       h('label', { class: 'lbl', for: 'f-qty' }, t('howMuch')),
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'step', 'aria-label': '−', html: ICON.minus, onclick: () => setQty(Math.max(stepOf(unit), parseQty() - stepOf(unit))) }),
         h('div', { class: 'qty-box' }, qtyIn, unitSel),
         h('button', { type: 'button', class: 'step', 'aria-label': '+', html: ICON.plus, onclick: () => setQty(parseQty() + stepOf(unit)) })),
       quick,
-      urgentBtn,
+      date ? null : urgentBtn,
       h('label', { class: 'lbl', for: 'f-note' }, t('note')), note,
       nameField(),
       err,
       h('div', { class: 'actions' },
-        h('button', { type: 'button', class: 'btn primary', onclick: save }, r ? t('update') : t('add')),
+        h('button', { type: 'button', class: 'btn primary', onclick: save },
+          date ? (p ? t('updatePlan') : t('planBtn', { day: dayName(date) })) : r ? t('update') : t('add')),
+        p ? h('button', { type: 'button', class: 'btn ghost full danger', onclick: unplan }, t('removePlan')) : null,
         r ? h('button', { type: 'button', class: 'btn ghost full nf-btn', onclick: notFound },
           h('span', { html: ICON.search }), r.nf ? t('notFoundUndo') : t('notFoundBtn')) : null,
         r ? h('button', { type: 'button', class: 'btn ghost full danger', onclick: remove }, t('removeFromList')) : null),
@@ -671,48 +769,326 @@
     toastTimer = setTimeout(() => { el.hidden = true; }, acts.length ? 7000 : 2600);
   }
 
-  // ---------------------------------------------------------- Verlauf
-  const monthKey = () => `${month.y}-${String(month.m + 1).padStart(2, '0')}`;
-  async function renderHistory(force) {
-    const label = new Intl.DateTimeFormat(LOCALE[lang], { month: 'long', year: 'numeric' }).format(new Date(month.y, month.m, 1));
-    $('#m-label').textContent = label;
-    const now = new Date();
-    $('#m-next').disabled = month.y > now.getFullYear() || (month.y === now.getFullYear() && month.m >= now.getMonth());
-    const key = monthKey();
+  // ---------------------------------------------------------- Monatsdaten (gekauft)
+  const monthKey = mo => `${mo.y}-${pad(mo.m + 1)}`;
+  const prevMonth = mo => (mo.m ? { y: mo.y, m: mo.m - 1 } : { y: mo.y - 1, m: 11 });
+  const nextMonth = mo => (mo.m < 11 ? { y: mo.y, m: mo.m + 1 } : { y: mo.y + 1, m: 0 });
+  const monthOf = k => { const d = fromKey(k); return { y: d.getFullYear(), m: d.getMonth() }; };
+  async function loadMonth(mo) {
+    const start = new Date(mo.y, mo.m, 1), end = new Date(mo.y, mo.m + 1, 1), now = new Date();
+    if (start > now) return [];
+    const key = monthKey(mo);
     let data = histCache.get(key);
-    // Laufender Monat: neu laden, wenn sich die Liste geändert hat
-    if (force || !data || (data.v !== S.v && $('#m-next').disabled)) {
-      try {
-        const from = new Date(month.y, month.m, 1).getTime(), to = new Date(month.y, month.m + 1, 1).getTime();
-        const res = await call('GET', `/history?from=${from}&to=${to}`);
-        data = { v: S.v, requests: res.requests };
-        histCache.set(key, data);
-      } catch { return; }
-      if (monthKey() !== key) return;                 // inzwischen weitergeblättert
+    // laufender Monat: neu holen, sobald sich die Liste geändert hat
+    if (!data || (end > now && data.v !== S.v)) {
+      const res = await call('GET', `/history?from=${start.getTime()}&to=${end.getTime()}`);
+      data = { v: S.v, requests: res.requests };
+      histCache.set(key, data);
     }
-    drawHistory(data.requests.filter(r => itemById(r.item)));
+    return data.requests.filter(r => itemById(r.item));
+  }
+  const byDay = reqs => {
+    const m = new Map();
+    for (const r of reqs) { const k = dkey(new Date(r.doneAt)); (m.get(k) || m.set(k, []).get(k)).push(r); }
+    return m;
+  };
+  const sumPrice = rows => rows.reduce((s, r) => s + (r.price || 0), 0);
+  const moneyShort = p => new Intl.NumberFormat(LOCALE[lang], { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(p);
+  // Wochentagsnamen ab Montag (1. Jan. 2024 war ein Montag)
+  const weekdays = (style = 'narrow') => [...Array(7)].map((_, i) => new Intl.DateTimeFormat(LOCALE[lang], { weekday: style }).format(new Date(2024, 0, 1 + i)));
+
+  // ---------------------------------------------------------- Kalender
+  let calToken = 0;
+  async function renderCal() {
+    const mo = calMonth, tk = todayKey();
+    if (!selDay) selDay = addD(tk, 1);
+    $('#c-label').textContent = monthLabel(mo);
+    const now = new Date();
+    $('#c-next').disabled = new Date(mo.y, mo.m + 1, 1) >= new Date(now.getFullYear(), now.getMonth() + 4, 1);
+    $('#cal-lead').textContent = t('calLead', { h: planHour() });
+    const my = ++calToken;
+    let reqs = [], selReqs = [];
+    try {
+      reqs = await loadMonth(mo);
+      const sm = monthOf(selDay);
+      selReqs = monthKey(sm) === monthKey(mo) ? reqs : await loadMonth(sm);
+    } catch { /* offline: Eingeplantes geht trotzdem */ }
+    if (my !== calToken) return;
+    $('#cal').replaceChildren(calGrid(mo, byDay(reqs)), dayPanel(selDay, selReqs));
   }
 
-  function drawHistory(reqs) {
-    const box = $('#history'); box.replaceChildren();
-    if (!reqs.length) { box.append(h('p', { class: 'none hist-empty' }, t('noHistory'))); return; }
-
-    const total = reqs.reduce((s, r) => s + (r.price || 0), 0);
-    const noPrice = reqs.filter(r => r.price == null).length;
-    const per = new Map();
-    for (const r of reqs) {
-      const p = per.get(r.item) || { item: r.item, n: 0, spent: 0, qty: 0, units: new Set(), times: [] };
-      p.n += 1; p.spent += r.price || 0; p.qty += r.qty; p.units.add(r.unit); p.times.push(r.doneAt);
-      per.set(r.item, p);
+  function calGrid(mo, bought) {
+    const tk = todayKey();
+    const first = new Date(mo.y, mo.m, 1);
+    const lead = (first.getDay() + 6) % 7;
+    const days = new Date(mo.y, mo.m + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(h('span', { class: 'cal-d empty', 'aria-hidden': 'true' }));
+    for (let d = 1; d <= days; d++) {
+      const k = dkey(new Date(mo.y, mo.m, d));
+      const b = bought.get(k) || [], spend = sumPrice(b), np = plansOn(k).length;
+      const ne = k > tk ? expectedOn(k).length : 0;
+      const mark = spend ? moneyShort(spend) : b.length ? `${num(b.length)}×` : '';
+      const label = [fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }),
+        b.length ? t(b.length === 1 ? 'buys1' : 'buysN', { n: b.length }) : '', spend ? money(spend) : '',
+        np ? t('plannedN', { n: np }) : '', ne ? t('expectedN', { n: ne }) : ''].filter(Boolean).join(' · ');
+      cells.push(h('button', {
+        type: 'button', 'aria-label': label, 'aria-pressed': String(k === selDay),
+        class: 'cal-d' + (k === tk ? ' today' : '') + (k < tk ? ' past' : '') + (np ? ' has-plan' : ''),
+        onclick: () => { selDay = k; renderCal().then(() => $('#day-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); },
+      },
+      h('span', { class: 'n' }, num(d)),
+      h('span', { class: 'm' }, mark),
+      np ? h('i', { class: 'pl' }, num(np)) : ne ? h('i', { class: 'ex', 'aria-hidden': 'true' }) : null));
     }
-    const stats = [...per.values()];
+    return h('div', { class: 'cal-box' },
+      h('div', { class: 'cal-wk', 'aria-hidden': 'true' }, weekdays().map(w => h('span', null, w))),
+      h('div', { class: 'cal-grid' }, cells),
+      h('p', { class: 'cal-key' },
+        h('span', null, h('i', { class: 'pl' }, '2'), t('keyPlanned')),
+        h('span', null, h('i', { class: 'ex' }), t('keyExpected')),
+        h('span', null, h('b', null, '€'), t('keyBought'))));
+  }
+
+  // Alles, was zu Tag k gehört: eingeplant für k, an k auf die Liste gekommen,
+  // an k gekauft – und heute zusätzlich alles, was noch offen ist.
+  // Gekauftes bleibt sichtbar (durchgestrichen), Offenes bleibt normal.
+  function dayRequests(k, monthReqs) {
+    const tk = todayKey(), all = new Map();
+    for (const r of monthReqs) all.set(r.id, r);
+    for (const r of S.requests) all.set(r.id, r);               // neuester Stand gewinnt
+    const belongs = r => (r.plan ? r.plan === k : dkey(new Date(r.at)) === k);
+    const list = [...all.values()].filter(r => itemById(r.item) && (belongs(r)
+      || (r.st === 'done' && dkey(new Date(r.doneAt)) === k) || (k === tk && r.st === 'open')));
+    return {
+      open: list.filter(r => r.st === 'open').sort(byUrgent),
+      done: list.filter(r => r.st === 'done').sort((a, b) => a.doneAt - b.doneAt),
+    };
+  }
+
+  async function buyFromCal(r, it) {
+    try {
+      await post('/done', { id: r.id, by: me });
+      histCache.clear(); render();
+      toast(t('boughtToast', { name: nameOf(it) }), t('addPrice'), () => openPrice({ ...r, st: 'done' }, it),
+        t('undo'), () => post('/reopen', { id: r.id, by: me }).then(() => { histCache.clear(); render(); }).catch(() => toast(t('error'))));
+    } catch { toast(t('error')); }
+  }
+  async function buyPlan(p, it) {
+    try {
+      const s = await post('/plandone', { id: p.id, by: me });
+      histCache.clear(); render();
+      const d = s.requests.filter(r => r.item === p.item && r.st === 'done' && r.plan === p.date).sort((a, b) => b.doneAt - a.doneAt)[0];
+      toast(t('boughtToast', { name: nameOf(it) }), t('undo'),
+        () => d && post('/undoplan', { id: d.id }).then(() => { histCache.clear(); render(); }).catch(() => toast(t('error'))));
+    } catch { toast(t('error')); }
+  }
+
+  function dayPanel(k, monthReqs) {
+    const tk = todayKey(), past = k < tk, isToday = k === tk;
+    const { open, done } = dayRequests(k, monthReqs);
+    const plans = plansOn(k);
+    const exp = past ? [] : expectedOn(k);
+    const sum = sumPrice(done.filter(r => dkey(new Date(r.doneAt)) === k));
+    const total = plans.length + open.length + done.length;
+    const box = h('section', { class: 'day-panel', id: 'day-panel', 'aria-labelledby': 'day-h' },
+      h('h2', { class: 'day-h', id: 'day-h' },
+        h('span', null, (isToday ? `${t('today')} · ` : k === addD(tk, 1) ? `${t('tomorrow')} · ` : '')
+          + fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })),
+        sum ? h('b', null, money(sum)) : null));
+
+    if (total) {
+      const pct = Math.round(done.length / total * 100);
+      const bar = h('i'); bar.style.width = `${pct}%`;
+      box.append(h('div', { class: 'day-progress' },
+        h('span', { class: 'day-progress-t' }, bar),
+        h('small', null, t('doneOf', { d: num(done.length), n: num(total) }))));
+    }
+
+    // noch zu kaufen: Eingeplantes (noch nicht auf der Liste) + Offenes
+    const tick = (label, fn) => h('button', { type: 'button', class: 'tick', 'aria-label': label, html: ICON.check, onclick: fn });
+    const rows = [
+      ...plans.map(p => {
+        const it = itemById(p.item);
+        return h('div', { class: 'done-row plan-row' },
+          h('button', { type: 'button', class: 'plan-open', onclick: () => openItem(p.item, { date: k }) }, pic(it),
+            h('span', null, h('b', null, nameOf(it)),
+              h('span', null, [t('plannedH'), p.note, p.by].filter(Boolean).join(' · ')))),
+          h('strong', { class: 'qty' }, qtyText(p)),
+          tick(`${t('markBought')}: ${nameOf(it)}`, () => buyPlan(p, it)));
+      }),
+      ...open.map(r => {
+        const it = itemById(r.item);
+        return h('div', { class: 'done-row plan-row' + (r.urgent ? ' urgent' : '') },
+          h('button', { type: 'button', class: 'plan-open', onclick: () => openItem(r.item) }, pic(it),
+            h('span', null, h('b', null, nameOf(it)),
+              h('span', null, [r.urgent ? t('urgent') : t('onList'), r.nf ? t('nfTag') : '', r.by].filter(Boolean).join(' · ')))),
+          h('strong', { class: 'qty' }, qtyText(r)),
+          tick(`${t('markBought')}: ${nameOf(it)}`, () => buyFromCal(r, it)));
+      }),
+    ];
+    if (rows.length) {
+      box.append(h('h3', { class: 'sub-h' }, past ? t('stillOpen') : t('toBuyH'), h('small', null, num(rows.length))),
+        h('div', { class: 'done-list' }, rows));
+    }
+
+    if (done.length) {
+      box.append(h('h3', { class: 'sub-h' }, t('boughtH'), h('small', null, num(done.length))),
+        h('div', { class: 'done-list' }, done.map(r => {
+          const it = itemById(r.item);
+          const dd = dkey(new Date(r.doneAt));
+          const time = new Intl.DateTimeFormat(LOCALE[lang], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(r.doneAt));
+          return h('div', { class: 'done-row bought-row' },
+            h('span', { class: 'done-ico', html: ICON.check }),
+            h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
+              h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), dd === k ? time : fmtDate(dd)].join(' · '))),
+            priceBtn(r, it));
+        })));
+    }
+
+    if (exp.length) {
+      const planAll = async () => {
+        try {
+          for (const f of exp) await post('/plan', { item: f.item, qty: f.qty, unit: f.unit, by: me, dev, date: k });
+          toast(t('plannedAllToast', { n: exp.length, day: dayName(k) }));
+        } catch { toast(t('error')); }
+      };
+      box.append(h('h3', { class: 'sub-h' }, t('expectedH'), h('small', null, num(exp.length))),
+        h('p', { class: 'help sub-lead' }, t('expectedLead')),
+        h('div', { class: 'done-list' }, exp.map(f => {
+          const it = itemById(f.item);
+          return h('div', { class: 'done-row exp-row' }, pic(it),
+            h('div', null, h('b', null, nameOf(it)),
+              h('span', null, [t('everyN', { n: num(Math.max(1, Math.round(f.every))) }), `${num(f.qty)} ${unitOf(f.unit)}`].join(' · '))),
+            h('button', { type: 'button', class: 'add-plan',
+              onclick: () => openItem(f.item, { date: isToday ? null : k, qty: f.qty, unit: f.unit }) },
+            h('span', { html: ICON.plus }), isToday ? t('addNow') : t('planIt')));
+        })),
+        !isToday && exp.length > 1 ? h('button', { type: 'button', class: 'btn ghost full plan-all', onclick: planAll }, t('planAll', { n: exp.length })) : null);
+    }
+
+    if (!total && !exp.length) box.append(h('p', { class: 'none day-empty' }, past ? t('dayEmptyPast') : t('dayEmpty')));
+    if (!past) {
+      box.append(h('button', { type: 'button', class: 'btn primary full plan-cta',
+        onclick: () => { if (isToday) { setView('need'); return; } planDate = k; query = ''; $('#q').value = ''; setView('need'); } },
+      h('span', { html: isToday ? ICON.plus : ICON.cal }), isToday ? t('addToListToday') : t('planForDay', { day: dayName(k) })));
+    }
+    return box;
+  }
+
+  // ---------------------------------------------------------- Statistik
+  let statToken = 0;
+  async function renderStats() {
+    const mo = statMonth;
+    $('#s-label').textContent = monthLabel(mo);
+    const now = new Date();
+    $('#s-next').disabled = mo.y > now.getFullYear() || (mo.y === now.getFullYear() && mo.m >= now.getMonth());
+    const my = ++statToken;
+    let reqs, prev;
+    try { [reqs, prev] = await Promise.all([loadMonth(mo), loadMonth(prevMonth(mo))]); } catch { return; }
+    if (my !== statToken) return;
+    drawStats(reqs, prev, mo);
+  }
+
+  const delta = (a, b) => (b > 0 ? Math.round((a - b) / b * 100) : null);
+  const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  function fmtDur(ms) {
+    const min = ms / 6e4;
+    if (min < 90) return t('durMin', { n: num(Math.max(1, Math.round(min))) });
+    const hrs = min / 60;
+    if (hrs < 48) return t('durH', { n: num(Math.round(hrs)) });
+    return t('durD', { n: num(Math.round(hrs / 24)) });
+  }
+
+  // Einfaches Säulendiagramm aus HTML: eine Farbe, Antippen zeigt den Wert
+  function columns(rows, fmtMax, defaultIdx) {
+    const max = Math.max(0, ...rows.map(r => r.v));
+    const cap = h('p', { class: 'chart-cap', 'aria-live': 'polite' });
+    const btns = rows.map((r, i) => {
+      const bar = h('i');
+      bar.style.height = max && r.v ? `${Math.max(3, r.v / max * 100)}%` : '0';
+      return h('button', { type: 'button', class: 'col' + (r.cur ? ' cur' : ''), 'aria-label': `${r.label}: ${r.text}`,
+        onpointerenter: () => show(i), onfocus: () => show(i), onclick: () => show(i) }, bar);
+    });
+    function show(i) {
+      btns.forEach((b, j) => b.classList.toggle('on', i === j));
+      cap.replaceChildren(h('b', null, rows[i].label), ' ', rows[i].text);
+    }
+    const el = h('div', { class: 'chart' },
+      h('div', { class: 'plot' }, h('span', { class: 'plot-max' }, max ? fmtMax(max) : ''), h('div', { class: 'cols' }, btns)),
+      h('div', { class: 'cols-x', 'aria-hidden': 'true' }, rows.map(r => h('span', null, r.tick || ''))),
+      cap);
+    show(defaultIdx >= 0 ? defaultIdx : rows.reduce((bi, r, i) => (r.v > rows[bi].v ? i : bi), 0));
+    return el;
+  }
+
+  function drawStats(reqs, prev, mo) {
+    const box = $('#stats'); box.replaceChildren();
+    if (!reqs.length) { box.append(h('p', { class: 'none hist-empty' }, t('noHistory'))); return; }
+    const pm = new Intl.DateTimeFormat(LOCALE[lang], { month: 'short' }).format(new Date(prevMonth(mo).y, prevMonth(mo).m, 1));
+    // laufender Monat: nur mit denselben Tagen des Vormonats vergleichen (1. bis heute)
+    const nowD = new Date(), running = mo.y === nowD.getFullYear() && mo.m === nowD.getMonth();
+    if (running) prev = prev.filter(r => new Date(r.doneAt).getDate() <= nowD.getDate());
+    const vs = running ? t('vsPrevPart', { m: pm, d: num(nowD.getDate()) }) : t('vsPrev', { m: pm });
+    const total = sumPrice(reqs), prevTotal = sumPrice(prev);
+    const priced = total > 0;
+    const noPrice = reqs.filter(r => r.price == null).length;
+    const urgentN = reqs.filter(r => r.urgent).length;
+    const wait = median(reqs.filter(r => r.doneAt > r.at).map(r => r.doneAt - r.at));
+    const prevWait = median(prev.filter(r => r.doneAt > r.at).map(r => r.doneAt - r.at));
+    const dEl = (d, upWord) => (d == null ? h('small', { class: 'delta' }, t('noCompare')) :
+      h('small', { class: 'delta' }, `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${num(Math.abs(d))} % ${vs}`));
+    const tile = (label, value, sub, main) => h('div', { class: 'tile-s' + (main ? ' main' : '') }, h('span', null, label), h('b', null, value), sub);
 
     box.append(h('div', { class: 'tiles' },
-      h('div', { class: 'tile-s' }, h('span', null, t('spent')), h('b', null, money(total))),
-      h('div', { class: 'tile-s' }, h('span', null, t('purchases')), h('b', null, num(reqs.length))),
-      h('div', { class: 'tile-s' }, h('span', null, t('itemsN')), h('b', null, num(per.size)))));
-    if (noPrice) box.append(h('p', { class: 'hint' }, t('noPrice', { n: noPrice })));
+      tile(t('spent'), money(total), priced ? dEl(delta(total, prevTotal)) : h('small', { class: 'delta' }, t('noPricesYet')), true),
+      tile(t('purchases'), num(reqs.length), dEl(delta(reqs.length, prev.length))),
+      tile(t('timeToBuy'), wait ? fmtDur(wait) : '–', prevWait ? h('small', { class: 'delta' }, `${vs}: ${fmtDur(prevWait)}`) : null),
+      tile(t('urgent'), num(urgentN), h('small', { class: 'delta' }, t('urgentShare', { p: num(Math.round(urgentN / reqs.length * 100)) })))));
+    if (noPrice && priced) box.append(h('p', { class: 'hint' }, t('noPrice', { n: noPrice })));
 
+    // Pro Tag
+    const days = new Date(mo.y, mo.m + 1, 0).getDate();
+    const per = byDay(reqs), tk = todayKey();
+    const dayRows = [...Array(days)].map((_, i) => {
+      const k = dkey(new Date(mo.y, mo.m, i + 1)), rows = per.get(k) || [], s = sumPrice(rows);
+      const v = priced ? s : rows.length;
+      return { v, cur: k === tk, label: fmtDate(k), tick: (i + 1) % 5 === 0 || i === 0 ? num(i + 1) : '',
+        text: rows.length ? [priced ? money(s) : '', t(rows.length === 1 ? 'buys1' : 'buysN', { n: rows.length })].filter(Boolean).join(' · ') : t('nothingBought') };
+    });
+    box.append(h('h2', { class: 'h-sec' }, priced ? t('chartSpendDay') : t('chartBuysDay')),
+      columns(dayRows, priced ? moneyShort : num, dayRows.findIndex(r => r.cur && r.v)));
+
+    // Wochentag, an dem etwas auf die Liste kam
+    const wd = [0, 0, 0, 0, 0, 0, 0];
+    for (const r of reqs) wd[(new Date(r.at).getDay() + 6) % 7] += 1;
+    const names = weekdays('long'), short = weekdays('short');
+    box.append(h('h2', { class: 'h-sec' }, t('chartWeekday')), h('p', { class: 'help sub-lead' }, t('chartWeekdayLead')),
+      columns(wd.map((v, i) => ({ v, label: names[i], tick: short[i], text: t(v === 1 ? 'entries1' : 'entriesN', { n: v }) })), num, -1));
+
+    // Kategorien
+    const cats = S.cats.map(c => {
+      const rows = reqs.filter(r => itemById(r.item)?.cat === c.id);
+      return { name: c.name[lang] || c.name.de, n: rows.length, s: sumPrice(rows) };
+    }).filter(c => c.n).sort((a, b) => (priced ? b.s - a.s : 0) || b.n - a.n);
+    const cmax = Math.max(...cats.map(c => (priced ? c.s : c.n)));
+    box.append(h('h2', { class: 'h-sec' }, t('chartCat')),
+      h('div', { class: 'hbars' }, cats.map(c => {
+        const bar = h('i');
+        bar.style.width = `${Math.max(2, (priced ? c.s : c.n) / cmax * 100)}%`;
+        return h('div', { class: 'hbar' }, h('span', { class: 'hbar-l' }, c.name),
+          h('span', { class: 'hbar-t' }, bar), h('b', null, priced ? money(c.s) : num(c.n)),
+          h('small', null, t(c.n === 1 ? 'buys1' : 'buysN', { n: c.n })));
+      })));
+
+    // Ranglisten
+    const perItem = new Map();
+    for (const r of reqs) {
+      const p = perItem.get(r.item) || { item: r.item, n: 0, spent: 0, qty: 0, units: new Set(), times: [] };
+      p.n += 1; p.spent += r.price || 0; p.qty += r.qty; p.units.add(r.unit); p.times.push(r.doneAt);
+      perItem.set(r.item, p);
+    }
+    const stats = [...perItem.values()];
     const statRow = (p, right) => {
       const it = itemById(p.item);
       const ts = p.times.sort((a, b) => a - b);
@@ -724,34 +1100,13 @@
         h('strong', null, right));
     };
     box.append(h('h2', { class: 'h-sec' }, t('reportTop')),
-      h('div', { class: 'stat-list' }, stats.sort((a, b) => b.n - a.n || b.spent - a.spent).slice(0, 10)
-        .map(p => statRow(p, `${num(p.n)}×`))));
+      h('div', { class: 'stat-list' }, stats.sort((a, b) => b.n - a.n || b.spent - a.spent).slice(0, 10).map(p => statRow(p, `${num(p.n)}×`))));
     const costly = stats.filter(p => p.spent > 0).sort((a, b) => b.spent - a.spent).slice(0, 10);
     if (costly.length) box.append(h('h2', { class: 'h-sec' }, t('reportCost')),
       h('div', { class: 'stat-list' }, costly.map(p => statRow(p, money(p.spent)))));
-
-    // Archiv: Tag für Tag, neueste zuerst
-    box.append(h('h2', { class: 'h-sec' }, t('archive')));
-    const days = new Map();
-    for (const r of [...reqs].sort((a, b) => b.doneAt - a.doneAt)) {
-      const d = new Date(r.doneAt); const k = d.toDateString();
-      if (!days.has(k)) days.set(k, { d, rows: [] });
-      days.get(k).rows.push(r);
-    }
-    for (const { d, rows } of days.values()) {
-      const sum = rows.reduce((s, r) => s + (r.price || 0), 0);
-      box.append(h('section', { class: 'day' },
-        h('h3', null, new Intl.DateTimeFormat(LOCALE[lang], { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
-          sum ? h('span', null, money(sum)) : null),
-        h('div', { class: 'done-list' }, rows.map(r => {
-          const it = itemById(r.item);
-          const time = new Intl.DateTimeFormat(LOCALE[lang], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(r.doneAt));
-          return h('div', { class: 'done-row arch' }, pic(it),
-            h('div', null, h('b', null, nameOf(it), ' · ', qtyText(r)),
-              h('span', null, [r.doneBy ? t('boughtBy', { n: r.doneBy }) : t('bought'), time].join(' · '))),
-            priceBtn(r, it));
-        }))));
-    }
+    box.append(h('button', { type: 'button', class: 'plan-link', onclick: () => { calMonth = { ...mo }; setView('cal'); } },
+      h('span', { class: 'opt-ico', html: ICON.cal }), h('span', null, h('b', null, t('archiveHint')), h('small', null, monthLabel(mo))),
+      h('span', { class: 'opt-go', html: ICON.chev })));
   }
 
   // ---------------------------------------------------------- Benachrichtigungen
@@ -840,11 +1195,13 @@
     render();
     window.scrollTo({ top: 0 });
   }
-  $('#m-prev').addEventListener('click', () => { month = month.m ? { y: month.y, m: month.m - 1 } : { y: month.y - 1, m: 11 }; renderHistory(); });
-  $('#m-next').addEventListener('click', () => { month = month.m < 11 ? { y: month.y, m: month.m + 1 } : { y: month.y + 1, m: 0 }; renderHistory(); });
+  $('#c-prev').addEventListener('click', () => { calMonth = prevMonth(calMonth); renderCal(); });
+  $('#c-next').addEventListener('click', () => { calMonth = nextMonth(calMonth); renderCal(); });
+  $('#s-prev').addEventListener('click', () => { statMonth = prevMonth(statMonth); renderStats(); });
+  $('#s-next').addEventListener('click', () => { statMonth = nextMonth(statMonth); renderStats(); });
   $('#bell').addEventListener('click', async () => { await loadPushKey(); openNotif(); });
   initPush();
-  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { planDate = null; setView(b.dataset.view); }));
   document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => {
     lang = b.dataset.lang; store.set('tb-ek-lang', lang); render();
   }));

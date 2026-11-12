@@ -14,7 +14,7 @@ const PORT = 18000 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PIN = '4711';
 let proc;
-const ENV = () => ({ ...process.env, PORT, DATA_DIR: DATA, TEAM_PIN: PIN, RESEND_API_KEY: "test-key", MAIL_API_URL: `http://127.0.0.1:${mailSrv.address().port}/emails` });
+const ENV = () => ({ ...process.env, PORT, DATA_DIR: DATA, TEAM_PIN: PIN, RESEND_API_KEY: "test-key", PLAN_HOUR: "0", MAIL_API_URL: `http://127.0.0.1:${mailSrv.address().port}/emails` });
 // falscher Mail-Dienst: merkt sich, was der Server verschicken wollte
 const mails = [];
 const mailSrv = http.createServer((req, res) => {
@@ -209,6 +209,62 @@ test('recipient: WhatsApp number, e-mail, send the list', async () => {
   assert.match(m.html, /&lt;b&gt;3,5%&lt;\/b&gt;/, 'note is escaped');
   assert.match(m.text, /رز: 6 كيلو/);
   assert.equal((await post('/send/email', {})).status, 429, 'not twice within seconds');
+});
+
+test('plan for a day: tomorrow stays planned, today goes on the list', async () => {
+  const { vienna, addDays } = await import('./plan.mjs');
+  const today = vienna().day, tomorrow = addDays(today, 1);
+  const post = (p, body) => api(p, { method: 'POST', body });
+  assert.equal((await post('/plan', { item: 'croissant', qty: 20, unit: 'stk', date: addDays(today, -1) })).status, 400, 'past');
+  assert.equal((await post('/plan', { item: 'croissant', qty: 20, unit: 'stk', date: '2026-02-30' })).status, 400, 'no such day');
+  let s = await (await post('/plan', { item: 'croissant', qty: 20, unit: 'stk', date: tomorrow, by: 'Sara' })).json();
+  s = await (await post('/plan', { item: 'croissant', qty: 24, unit: 'stk', date: tomorrow, note: 'Fr' })).json();
+  const p = s.plans.filter(x => x.item === 'croissant');
+  assert.equal(p.length, 1, 'same item + day is updated, not doubled');
+  assert.equal(p[0].qty, 24);
+  assert.ok(!s.requests.some(r => r.st === 'open' && r.item === 'croissant'), 'not on the list yet');
+  assert.equal(p[0].dev, undefined, 'device id stays on the server');
+
+  // morgen eingeplant → steht in der E-Mail an den Chef
+  const { buildList } = await import('./mail.mjs');
+  const mail = buildList([], s.items, 'de', 'https://x.test', s.plans);
+  assert.match(mail.text, /Gerade fehlt nichts[\s\S]*FÜR MORGEN EINGEPLANT[\s\S]*Croissants[^\n]*24/);
+
+  // heute eingeplant (PLAN_HOUR=0) → sofort auf der Liste, Plan ist weg
+  s = await (await post('/plan', { item: 'kuchen', qty: 3, unit: 'stk', date: today })).json();
+  const r = s.requests.find(x => x.st === 'open' && x.item === 'kuchen');
+  assert.ok(r && r.qty === 3 && r.plan === today);
+  assert.ok(!s.plans.some(x => x.item === 'kuchen'));
+
+  // vorher gekauft → als gekauft abgelegt, mit Plantag; rückgängig → wieder Plan
+  s = await (await post('/plan', { item: 'reis', qty: 5, unit: 'kg', date: tomorrow })).json();
+  const rp = s.plans.find(x => x.item === 'reis');
+  s = await (await post('/plandone', { id: rp.id, by: 'Ali' })).json();
+  const d = s.requests.find(x => x.item === 'reis' && x.st === 'done' && x.plan === tomorrow);
+  assert.ok(d && d.doneBy === 'Ali' && d.qty === 5);
+  assert.ok(!s.plans.some(x => x.id === rp.id));
+  s = await (await post('/undoplan', { id: d.id })).json();
+  assert.ok(s.plans.some(x => x.item === 'reis' && x.date === tomorrow && x.qty === 5));
+  assert.ok(!s.requests.some(x => x.id === d.id));
+
+  s = await (await post('/unplan', { id: p[0].id })).json();
+  assert.ok(!s.plans.some(x => x.item === 'croissant'));
+  assert.equal((await post('/unplan', { id: p[0].id })).status, 404);
+});
+
+test('forecast: typical gap from past requests', async () => {
+  const { forecast } = await import('./plan.mjs');
+  const D = 864e5, now = Date.UTC(2026, 10, 12, 12);
+  const reqs = [0, 3, 6, 9].map(d => ({ item: 'milch', at: now - 12 * D + d * D, qty: 6, unit: 'l' }))
+    .concat({ item: 'milch', at: now - 3 * D + 3600e3, qty: 8, unit: 'l' })      // gleicher Tag: zählt nicht extra
+    .concat([0, 20].map(d => ({ item: 'reis', at: now - 30 * D + d * D, qty: 2, unit: 'kg' })));  // nur 2× → keine Vorhersage
+  const f = forecast(reqs, { now });
+  assert.equal(f.length, 1);
+  assert.equal(f[0].item, 'milch');
+  assert.equal(f[0].every, 3);
+  assert.equal(f[0].next, now);
+  assert.equal(f[0].qty, 6);
+  assert.equal(forecast(reqs, { now, skip: new Set(['milch']) }).length, 0);
 });
 
 test('PIN brute force is slowed down', async () => {

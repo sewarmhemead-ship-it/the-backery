@@ -49,10 +49,10 @@ export const PUSH_TEXT = {
 
 // Texte der E-Mail an den Chef / die Chefin
 export const MAIL_TEXT = {
-  de: { title: 'Einkaufsliste', count: '{n} Artikel fehlen', urgent: 'Dringend', nf: 'im Geschäft nicht gefunden', open: 'Liste öffnen und abhaken' },
-  en: { title: 'Shopping list', count: '{n} items missing', urgent: 'Urgent', nf: 'not found in the shop', open: 'Open the list and tick things off' },
-  it: { title: 'Lista della spesa', count: 'Mancano {n} articoli', urgent: 'Urgente', nf: 'non trovato in negozio', open: 'Apri la lista e spunta' },
-  ar: { title: 'قائمة الشراء', count: 'ناقص {n} أغراض', urgent: 'مستعجل', nf: 'ما انلقى بالمحل', open: 'افتح القائمة وعلّم عليها' },
+  de: { title: 'Einkaufsliste', count: '{n} Artikel fehlen', urgent: 'Dringend', nf: 'im Geschäft nicht gefunden', open: 'Liste öffnen und abhaken', tomorrow: 'Für morgen eingeplant', nothingNow: 'Gerade fehlt nichts.' },
+  en: { title: 'Shopping list', count: '{n} items missing', urgent: 'Urgent', nf: 'not found in the shop', open: 'Open the list and tick things off', tomorrow: 'Planned for tomorrow', nothingNow: 'Nothing is missing right now.' },
+  it: { title: 'Lista della spesa', count: 'Mancano {n} articoli', urgent: 'Urgente', nf: 'non trovato in negozio', open: 'Apri la lista e spunta', tomorrow: 'Previsto per domani', nothingNow: 'Al momento non manca nulla.' },
+  ar: { title: 'قائمة الشراء', count: 'ناقص {n} أغراض', urgent: 'مستعجل', nf: 'ما انلقى بالمحل', open: 'افتح القائمة وعلّم عليها', tomorrow: 'مخطط لبكرا', nothingNow: 'هلأ ما في شي ناقص.' },
 };
 
 const I = (id, cat, unit, de, en, it, ar, img = id) => ({ id, cat, unit, img, name: { de, en, it, ar } });
