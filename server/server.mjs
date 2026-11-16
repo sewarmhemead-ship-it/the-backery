@@ -14,7 +14,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { CATEGORIES, UNITS, DEFAULT_ITEMS, PUSH_TEXT, LANGS } from './catalog.mjs';
+import { CATEGORIES, UNITS, DEFAULT_ITEMS, PUSH_TEXT, LANGS, DEFAULT_SHOPS } from './catalog.mjs';
 import { loadVapid, sendPush, pushAllowed } from './push.mjs';
 import { buildList, sendMail, mailReady, validEmail } from './mail.mjs';
 import { vienna, addDays, validDay, forecast } from './plan.mjs';
@@ -37,6 +37,7 @@ const PLAN_HOUR = Number.isFinite(Number(process.env.PLAN_HOUR)) && process.env.
 const PLAN_AHEAD_DAYS = 120, MAX_PLANS = 1000;
 const MAX_SUBS = 200;
 const MAX_CUSTOM_ITEMS = 300;
+const MAX_SHOPS = 20;
 const MAX_JSON = 16 * 1024;
 const MAX_PHOTO = 3 * 1024 * 1024;
 
@@ -46,7 +47,7 @@ const DEFAULT_IDS = new Set(DEFAULT_ITEMS.map(i => i.id));
 // ---------------------------------------------------------------- Daten
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null, plans: [] }; }
+function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null, plans: [], shops: DEFAULT_SHOPS.map(s => ({ ...s })) }; }
 
 function loadDb() {
   try {
@@ -61,6 +62,7 @@ function loadDb() {
       plans: Array.isArray(raw.plans) ? raw.plans : [],
       origin: typeof raw.origin === 'string' ? raw.origin : '',
       boss: raw.boss && typeof raw.boss === 'object' ? raw.boss : null,
+      shops: Array.isArray(raw.shops) ? raw.shops : DEFAULT_SHOPS.map(s => ({ ...s })),
     };
   } catch (e) {
     if (e.code !== 'ENOENT') {
@@ -107,6 +109,7 @@ function allItems() {
       cat: CAT_IDS.has(e.cat) ? e.cat : it.cat,
       photo: e.photo || null,
       hidden: !!e.hidden,
+      shop: e.shop && db.shops.some(s => s.id === e.shop) ? e.shop : null,
       def,
     };
   };
@@ -127,7 +130,7 @@ function state() {
   return {
     v: db.v, items: allItems(), cats: CATEGORIES, units: UNITS, top: topItems(),
     requests: db.requests.filter(r => r.st === 'open' || r.doneAt > since).map(publicReq),
-    boss: db.boss, mail: mailReady(),
+    boss: db.boss, mail: mailReady(), shops: db.shops,
     plans: db.plans.map(publicReq), today: vienna().day, planHour: PLAN_HOUR,
     forecast: forecast(db.requests, { skip: new Set(db.requests.filter(r => r.st === 'open').map(r => r.item)) }),
   };
@@ -270,6 +273,26 @@ const actions = {
     if (i < 0) throw new Bad('not found', 404);
     db.plans.splice(i, 1);
   },
+  // Geschäft anlegen (ohne id) oder umbenennen (mit id)
+  shop(b) {
+    const name = clean(b.name, 30); if (!name) throw new Bad('name missing');
+    if (b.id) {
+      const s = db.shops.find(x => x.id === b.id); if (!s) throw new Bad('not found', 404);
+      s.name = name; return { id: s.id };
+    }
+    const same = db.shops.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (same) return { id: same.id };
+    if (db.shops.length >= MAX_SHOPS) throw new Bad('too many shops');
+    const s = { id: newId('s-'), name };
+    db.shops.push(s);
+    return { id: s.id };
+  },
+  // Geschäft löschen: Artikel, die dort gekauft wurden, sind danach „ohne Geschäft“
+  shopdel(b) {
+    const i = db.shops.findIndex(x => x.id === b.id); if (i < 0) throw new Bad('not found', 404);
+    db.shops.splice(i, 1);
+    for (const e of Object.values(db.edits)) if (e.shop === b.id) delete e.shop;
+  },
   unsubscribe(b) {
     const endpoint = String(b.endpoint || ''), dev = clean(b.dev, 40);
     db.subs = db.subs.filter(x => x.endpoint !== endpoint && (!dev || x.dev !== dev));
@@ -290,6 +313,11 @@ const actions = {
     if (b.unit !== undefined) { if (!UNITS[b.unit]) throw new Bad('bad unit'); e.unit = b.unit; }
     if (b.cat !== undefined) { if (!CAT_IDS.has(b.cat)) throw new Bad('bad category'); e.cat = b.cat; }
     if (b.hidden !== undefined) e.hidden = !!b.hidden;
+    if (b.shop !== undefined) {
+      if (b.shop === null || b.shop === '') delete e.shop;
+      else if (db.shops.some(s => s.id === b.shop)) e.shop = b.shop;
+      else throw new Bad('unknown shop');
+    }
     if (b.resetPhoto) { dropPhoto(e.photo); delete e.photo; }
     if (b.name !== undefined && !DEFAULT_IDS.has(id)) {
       const name = clean(b.name, 60); if (!name) throw new Bad('name missing');
@@ -366,7 +394,7 @@ async function mailList() {
   const open = db.requests.filter(r => r.st === 'open').sort((x, y) => x.at - y.at);
   if (!open.length && !db.plans.some(p => p.date === addDays(vienna().day, 1))) throw new Bad('list empty');
   const tomorrow = addDays(vienna().day, 1);
-  await sendMail(b.email, buildList(open, allItems(), b.lang, db.origin, db.plans.filter(p => p.date === tomorrow)));
+  await sendMail(b.email, buildList(open, allItems(), b.lang, db.origin, db.plans.filter(p => p.date === tomorrow), db.shops));
   lastMail = Date.now();
 }
 
@@ -535,7 +563,7 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
-  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss|plan|unplan|plandone|undoplan)$/);
+  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss|plan|unplan|plandone|undoplan|shop|shopdel)$/);
   if (am && req.method === 'POST') {
     if (!String(req.headers['content-type'] || '').includes('application/json')) throw new Bad('json only', 415);
     let body;

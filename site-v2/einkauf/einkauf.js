@@ -74,6 +74,7 @@
     chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
     cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    shop: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M5.5 12v8h13v-8M10 20v-5h4v5"/></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   };
 
@@ -284,20 +285,27 @@
         h('h2', null, t('empty')), h('p', null, t('emptyLead'))));
     } else {
       list.append(h('p', { class: 'lead list-hint' }, t('listHint')));
+      const { groups, byShop, anyShop } = listGroups(open);
+      if (anyShop) {
+        const pick = m => { groupMode = m; store.set('tb-ek-group', m); renderList(); };
+        list.append(h('div', { class: 'group-bar' },
+          h('div', { class: 'seg seg2', role: 'group', 'aria-label': t('whereBuy') },
+            h('button', { type: 'button', 'aria-pressed': String(byShop), onclick: () => pick('shop') }, t('byShop')),
+            h('button', { type: 'button', 'aria-pressed': String(!byShop), onclick: () => pick('cat') }, t('byCat'))),
+          h('button', { type: 'button', class: 'link-btn', onclick: () => openShops() }, t('editShops'))));
+      }
       // Dringendes ganz oben, eigene Gruppe in Rot
       const urgent = open.filter(r => r.urgent && itemById(r.item)).sort((a, b) => a.at - b.at);
       if (urgent.length) {
         list.append(h('section', { class: 'group urgent-group' },
           h('h2', { class: 'group-h' }, h('span', { class: 'chip-ico', html: ICON.alert }), t('urgent')),
-          h('div', { class: 'rows' }, urgent.map(r => listRow(r, itemById(r.item))))));
+          h('div', { class: 'rows' }, urgent.map(r => listRow(r, itemById(r.item), true)))));
       }
-      for (const c of S.cats) {
-        // „nicht gefunden“ ans Ende der Gruppe
-        const rows = open.filter(r => !r.urgent && itemById(r.item)?.cat === c.id).sort((a, b) => (a.nf ? 1 : 0) - (b.nf ? 1 : 0) || a.at - b.at);
-        if (!rows.length) continue;
-        list.append(h('section', { class: 'group', 'data-cat': c.id },
-          h('h2', { class: 'group-h' }, c.name[lang] || c.name.de, h('small', null, num(rows.length))),
-          h('div', { class: 'rows' }, rows.map(r => listRow(r, itemById(r.item))))));
+      // „nicht gefunden“ steht jeweils am Ende der Gruppe
+      for (const g of groups) {
+        list.append(h('section', { class: 'group' + (g.shop ? ' shop-group' : '') + (g.none ? ' no-shop' : ''), 'data-cat': g.cat || null },
+          h('h2', { class: 'group-h' }, g.shop ? h('span', { class: 'chip-ico shop-ico', html: ICON.shop }) : null, g.title, h('small', null, num(g.rows.length))),
+          h('div', { class: 'rows' }, g.rows.map(r => listRow(r, itemById(r.item), !g.shop)))));
       }
     }
     // Hinweis auf morgen, damit niemand doppelt einkauft
@@ -326,10 +334,39 @@
     }
   }
 
+  // ---------------------------------------------------------- Geschäfte
+  const shopById = id => (S.shops || []).find(s => s.id === id);
+  const shopOf = it => (it ? shopById(it.shop) : null);
+  let groupMode = store.get('tb-ek-group') === 'cat' ? 'cat' : 'shop';
+  // Nicht-Dringendes in Gruppen: nach Geschäft (sobald eins vergeben ist) oder nach Kategorie
+  function listGroups(open) {
+    const rest = open.filter(r => !r.urgent && itemById(r.item));
+    const catIdx = new Map(S.cats.map((c, i) => [c.id, i]));
+    const order = (a, b) => (a.nf ? 1 : 0) - (b.nf ? 1 : 0)
+      || (catIdx.get(itemById(a.item).cat) ?? 99) - (catIdx.get(itemById(b.item).cat) ?? 99) || a.at - b.at;
+    const anyShop = rest.some(r => shopOf(itemById(r.item)));
+    const groups = [];
+    if (groupMode === 'shop' && anyShop) {
+      for (const s of S.shops || []) {
+        const rows = rest.filter(r => itemById(r.item).shop === s.id).sort(order);
+        if (rows.length) groups.push({ key: s.id, title: s.name, rows, shop: true });
+      }
+      const none = rest.filter(r => !shopOf(itemById(r.item))).sort(order);
+      if (none.length) groups.push({ key: '_none', title: t('noShop'), rows: none, shop: true, none: true });
+    } else {
+      for (const c of S.cats) {
+        const rows = rest.filter(r => itemById(r.item).cat === c.id).sort((a, b) => (a.nf ? 1 : 0) - (b.nf ? 1 : 0) || a.at - b.at);
+        if (rows.length) groups.push({ key: c.id, title: c.name[lang] || c.name.de, rows, cat: c.id });
+      }
+    }
+    return { groups, byShop: groups.some(g => g.shop), anyShop };
+  }
+
   // seit wie vielen Kalendertagen steht etwas schon offen auf der Liste?
   const daysOpen = r => Math.round((fromKey(todayKey()) - fromKey(dkey(new Date(r.at)))) / 864e5);
 
-  function listRow(r, it) {
+  function listRow(r, it, showShop) {
+    const sh = showShop ? shopOf(it) : null;
     const row = h('div', { class: 'row' + (r.urgent ? ' urgent' : '') + (r.nf ? ' nf' : ''), 'data-cat': it.cat });
     row.append(
       h('button', { type: 'button', class: 'row-main', onclick: () => openItem(it.id) },
@@ -339,6 +376,7 @@
           deName(it) ? h('span', { class: 'row-de' }, deName(it)) : null,
           r.nf ? h('span', { class: 'row-nf' }, h('span', { html: ICON.search }), [t('nfTag'), r.nf.by, when(r.nf.at)].filter(Boolean).join(' · ')) : null,
           r.note ? h('span', { class: 'row-note' }, r.note) : null,
+          sh ? h('span', { class: 'row-shop' }, h('span', { html: ICON.shop }), sh.name) : null,
           daysOpen(r) > 0 ? h('span', { class: 'row-pending' }, t(daysOpen(r) === 1 ? 'pending1' : 'pendingN', { n: num(daysOpen(r)) })) : null,
           h('span', { class: 'row-meta' }, [r.by, when(r.upd || r.at), r.plan ? t('fromPlan') : ''].filter(Boolean).join(' · '))),
         h('span', { class: 'row-qty' }, h('b', null, num(r.qty)), h('span', null, unitOf(r.unit)))),
@@ -367,16 +405,15 @@
     const lines = [bold(`THE BAKERY · ${t('shareTitle')}`), d];
     const line = r => {
       const it = itemById(r.item);
-      lines.push(`• ${nameOf(it)}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}${r.nf ? ` (${t('nfTag')})` : ''}`);
+      const sh = r.urgent ? shopOf(it) : null;
+      lines.push(`• ${nameOf(it)}${sh ? ` (${sh.name})` : ''}: ${qtyText(r)}${r.note ? ` · ${r.note}` : ''}${r.nf ? ` (${t('nfTag')})` : ''}`);
       if (deName(it)) lines.push(wa ? `   _${deName(it)}_` : `   (${deName(it)})`);
     };
     const urgent = openRequests().filter(r => r.urgent && itemById(r.item));
     if (urgent.length) { lines.push('', bold(`❗ ${t('urgent')}`)); urgent.forEach(line); }
-    for (const c of S.cats) {
-      const rows = openRequests().filter(r => !r.urgent && itemById(r.item)?.cat === c.id);
-      if (!rows.length) continue;
-      lines.push('', bold(c.name[lang] || c.name.de));
-      rows.forEach(line);
+    for (const g of listGroups(openRequests()).groups) {
+      lines.push('', bold(g.shop && !g.none ? `🛒 ${g.title}` : g.title));
+      g.rows.forEach(line);
     }
     if (!openRequests().length) lines.push('', t('empty'));
     const planned = plansOn(addD(todayKey(), 1));
@@ -549,6 +586,22 @@
       onclick: () => { urgent = !urgent; urgentBtn.setAttribute('aria-pressed', String(urgent)); } },
     h('span', { html: ICON.alert }), t('urgentMark'));
 
+    // Wo kaufen? gilt für den Artikel (alle im Team), wird sofort gespeichert
+    let shop = it.shop && shopById(it.shop) ? it.shop : '';
+    const shopBox = h('div', { class: 'cat-pick shop-pick', role: 'group', 'aria-label': t('whereBuy') });
+    const back = () => openItem(id, { date, qty: parseQty() || undefined, unit, note: note.value });
+    const drawShops = () => shopBox.replaceChildren(
+      ...(S.shops || []).map(s => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(s.id === shop), onclick: () => setShop(s.id) }, s.name)),
+      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(!shop), onclick: () => setShop('') }, t('anyShop')),
+      h('button', { type: 'button', class: 'chip chip-add', onclick: () => openShops(back, id) }, h('span', { html: ICON.plus }), t('addShop')));
+    async function setShop(v) {
+      if (v === shop) return;
+      const was = shop; shop = v; drawShops();
+      try { await post('/edit', { id, shop: v || null }); }
+      catch { shop = was; drawShops(); err.textContent = t('error'); }
+    }
+    drawShops();
+
     async function save() {
       const v = parseQty();
       if (!(v > 0)) { err.textContent = t('badQty'); qtyIn.classList.remove('shake'); void qtyIn.offsetWidth; qtyIn.classList.add('shake'); qtyIn.focus(); return; }
@@ -601,6 +654,7 @@
         h('button', { type: 'button', class: 'step', 'aria-label': '+', html: ICON.plus, onclick: () => setQty(parseQty() + stepOf(unit)) })),
       quick,
       date ? null : urgentBtn,
+      h('span', { class: 'lbl' }, h('span', { class: 'lbl-ico', html: ICON.shop }), t('whereBuy')), shopBox,
       h('label', { class: 'lbl', for: 'f-note' }, t('note')), note,
       nameField(),
       err,
@@ -619,6 +673,50 @@
     markQuick();
     note.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
     qtyIn.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
+  }
+
+  // back: zurück zum Artikel; forItem: neues Geschäft gleich diesem Artikel geben
+  function openShops(back, forItem) {
+    const err = h('p', { class: 'err', role: 'alert' });
+    const listBox = h('div', { class: 'shop-list' });
+    const draw = () => listBox.replaceChildren(...(S.shops || []).map(s => {
+      const inp = h('input', { class: 'field', maxlength: 30, value: s.name, 'aria-label': t('name'), autocomplete: 'off' });
+      inp.addEventListener('change', async () => {
+        const name = inp.value.trim();
+        if (!name) { inp.value = s.name; return; }
+        if (name === s.name) return;
+        try { await post('/shop', { id: s.id, name }); toast(t('saved')); } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+      });
+      let sure = false;
+      const del = h('button', { type: 'button', class: 'shop-del', 'aria-label': `${t('deleteShop')}: ${s.name}`, html: ICON.trash,
+        onclick: async () => {
+          if (!sure) { sure = true; del.classList.add('sure'); del.textContent = t('sureDelete'); setTimeout(() => { if (document.contains(del)) { sure = false; del.classList.remove('sure'); del.innerHTML = ICON.trash; } }, 4000); return; }
+          try { await post('/shopdel', { id: s.id }); draw(); } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+        } });
+      return h('div', { class: 'shop-row' }, inp, del);
+    }));
+    draw();
+    const addIn = h('input', { class: 'field', id: 'f-shop', maxlength: 30, placeholder: t('shopNamePh'), autocomplete: 'off' });
+    async function add() {
+      const name = addIn.value.trim();
+      if (!name) { addIn.focus(); return; }
+      try {
+        const res = await post('/shop', { name });
+        addIn.value = '';
+        if (forItem) { await post('/edit', { id: forItem, shop: res.id }); back(); return; }
+        draw(); addIn.focus();
+      } catch (e) { if (e.message !== 'pin') err.textContent = t('error'); }
+    }
+    addIn.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    openSheet(
+      h('h2', { class: 's-title', id: 'sheet-h' }, t('shopsTitle')),
+      h('p', { class: 's-lead' }, t('shopsLead')),
+      listBox,
+      h('label', { class: 'lbl', for: 'f-shop' }, t('addShop')),
+      h('div', { class: 'shop-add' }, addIn, h('button', { type: 'button', class: 'btn primary', onclick: add }, t('shopAdd'))),
+      h('p', { class: 'help' }, t('shopHelp')),
+      err,
+      h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn ghost full', onclick: () => (back ? back() : closeSheet()) }, t('shopsDone'))));
   }
 
   async function editItem(it, change, close) {

@@ -16,7 +16,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const plain = s => String(s).replace(/­/g, '');
 
 // open: offene Einträge, items: alle Artikel (mit Namen in allen Sprachen)
-export function buildList(open, items, lang, origin, planned = []) {
+export function buildList(open, items, lang, origin, planned = [], shops = []) {
   const L = MAIL_TEXT[lang] || MAIL_TEXT.de;
   const byId = new Map(items.map(i => [i.id, i]));
   const name = (it, l) => plain(it.name[l] || it.name.de || Object.values(it.name)[0] || '?');
@@ -29,10 +29,26 @@ export function buildList(open, items, lang, origin, planned = []) {
   const groups = [];
   const urgent = rows.filter(x => x.r.urgent);
   if (urgent.length) groups.push({ title: L.urgent, urgent: true, rows: urgent });
-  for (const c of CATEGORIES) {
-    const g = rows.filter(x => !x.r.urgent && x.it.cat === c.id);
-    if (g.length) groups.push({ title: c.name[lang] || c.name.de, rows: g });
+  const shopName = new Map(shops.map(s => [s.id, s.name]));
+  const rest = rows.filter(x => !x.r.urgent);
+  if (rest.some(x => shopName.has(x.it.shop))) {
+    // Reihenfolge der Geschäfte wie in der App, Rest am Ende; innerhalb nach Kategorie
+    const catIdx = new Map(CATEGORIES.map((c, i) => [c.id, i]));
+    const byCat = (a, b) => (catIdx.get(a.it.cat) ?? 99) - (catIdx.get(b.it.cat) ?? 99);
+    for (const s of shops) {
+      const g = rest.filter(x => x.it.shop === s.id).sort(byCat);
+      if (g.length) groups.push({ title: s.name, rows: g });
+    }
+    const none = rest.filter(x => !shopName.has(x.it.shop)).sort(byCat);
+    if (none.length) groups.push({ title: L.noShop, rows: none });
+  } else {
+    for (const c of CATEGORIES) {
+      const g = rest.filter(x => x.it.cat === c.id);
+      if (g.length) groups.push({ title: c.name[lang] || c.name.de, rows: g });
+    }
   }
+  // bei Dringendem steht das Geschäft dahinter
+  for (const x of urgent) if (shopName.has(x.it.shop)) x.shop = shopName.get(x.it.shop);
   const plan = planned.filter(p => byId.has(p.item)).map(p => ({ r: p, it: byId.get(p.item), name: name(byId.get(p.item), lang), de: '', qty: qty(p) }));
   if (plan.length) groups.push({ title: L.tomorrow, rows: plan, later: true });
   const n = rows.length;
@@ -45,7 +61,7 @@ export function buildList(open, items, lang, origin, planned = []) {
   for (const g of groups) {
     text.push('', g.title.toUpperCase());
     for (const x of g.rows) {
-      text.push(`- ${x.name}: ${x.qty}${x.r.note ? ` (${plain(x.r.note)})` : ''}${x.r.nf ? ` [${L.nf}]` : ''}${x.de ? `  / ${x.de}` : ''}`);
+      text.push(`- ${x.name}${x.shop ? ` (${x.shop})` : ''}: ${x.qty}${x.r.note ? ` (${plain(x.r.note)})` : ''}${x.r.nf ? ` [${L.nf}]` : ''}${x.de ? `  / ${x.de}` : ''}`);
     }
   }
   if (link) text.push('', `${L.open}: ${link}`);
@@ -61,7 +77,7 @@ export function buildList(open, items, lang, origin, planned = []) {
 ${groups.map(g => `<tr><td style="padding:16px 22px 0">
 <div style="font-size:13px;font-weight:bold;color:${g.urgent ? '#B3122E' : '#730F23'};padding-bottom:4px">${esc(g.title)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${g.rows.map(x => `<tr>
-<td style="padding:8px 0;border-top:1px solid #E6ECEE;font-size:16px;text-align:${start}">${esc(x.name)}${x.de ? `<div style="font-size:13px;color:#6B5A5E" dir="ltr">${esc(x.de)}</div>` : ''}${x.r.note ? `<div style="font-size:13px;color:#6B5A5E">${esc(plain(x.r.note))}</div>` : ''}${x.r.nf ? `<div style="font-size:13px;color:#B3122E">${esc(L.nf)}</div>` : ''}</td>
+<td style="padding:8px 0;border-top:1px solid #E6ECEE;font-size:16px;text-align:${start}">${esc(x.name)}${x.shop ? ` <span style="font-size:13px;color:#6B5A5E">· ${esc(x.shop)}</span>` : ''}${x.de ? `<div style="font-size:13px;color:#6B5A5E" dir="ltr">${esc(x.de)}</div>` : ''}${x.r.note ? `<div style="font-size:13px;color:#6B5A5E">${esc(plain(x.r.note))}</div>` : ''}${x.r.nf ? `<div style="font-size:13px;color:#B3122E">${esc(L.nf)}</div>` : ''}</td>
 <td style="padding:8px 0;border-top:1px solid #E6ECEE;font-size:16px;font-weight:bold;white-space:nowrap;vertical-align:top;text-align:${end}">${esc(x.qty)}</td></tr>`).join('')}</table></td></tr>`).join('\n')}
 <tr><td style="padding:22px">${link ? `<a href="${esc(link)}" style="display:inline-block;background:#730F23;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 18px;border-radius:8px">${esc(L.open)}</a>` : ''}</td></tr>
 </table></body></html>`;

@@ -290,6 +290,38 @@ test('forecast: typical gap from past requests', async () => {
   assert.equal(forecast(reqs, { now, skip: new Set(['milch']) }).length, 0);
 });
 
+test('shops: add, rename, assign, delete; list grouped by shop', async () => {
+  const post = (p, body) => api(p, { method: 'POST', body });
+  let s = await (await api('/state')).json();
+  assert.deepEqual(s.shops.map(x => x.name), ['Metro', 'Hofer', 'Billa', 'Spar', 'Lidl']);
+  assert.equal((await post('/shop', { name: '  ' })).status, 400);
+  const gm = (await (await post('/shop', { name: 'Großmarkt' })).json()).id;
+  assert.ok(gm);
+  assert.equal((await (await post('/shop', { name: 'großmarkt' })).json()).id, gm, 'same name → same shop');
+  assert.equal((await post('/edit', { id: 'brot', shop: 'nope' })).status, 400);
+  await post('/edit', { id: 'brot', shop: gm });
+  s = await (await post('/edit', { id: 'croissant', shop: 'metro' })).json();
+  assert.equal(s.items.find(i => i.id === 'brot').shop, gm);
+  assert.equal(s.items.find(i => i.id === 'croissant').shop, 'metro');
+  await post('/shop', { id: gm, name: 'Großmarkt Salzburg' });
+  await post('/need', { item: 'brot', qty: 4, unit: 'stk' });
+  s = await (await post('/need', { item: 'croissant', qty: 20, unit: 'stk' })).json();
+
+  const { buildList } = await import('./mail.mjs');
+  const m = buildList(s.requests.filter(r => r.st === 'open'), s.items, 'de', '', [], s.shops);
+  const iMetro = m.text.indexOf('\nMETRO\n'), iGm = m.text.indexOf('\nGROSSMARKT SALZBURG\n');
+  assert.ok(iMetro > 0 && iGm > iMetro, 'grouped by shop, in app order');
+  assert.ok(m.text.indexOf('Croissant') > iMetro && m.text.indexOf('Croissant') < iGm);
+  assert.match(m.html, /Großmarkt Salzburg/);
+
+  s = await (await post('/shopdel', { id: 'metro' })).json();
+  assert.ok(!s.shops.some(x => x.id === 'metro'));
+  assert.equal(s.items.find(i => i.id === 'croissant').shop, null, 'item falls back to no shop');
+  assert.equal((await post('/shopdel', { id: 'metro' })).status, 404);
+  s = await (await post('/edit', { id: 'brot', shop: null })).json();
+  assert.equal(s.items.find(i => i.id === 'brot').shop, null);
+});
+
 test('PIN brute force is slowed down', async () => {
   let last;
   for (let i = 0; i < 10; i++) last = (await api('/state', { pin: 'x' + i })).status;
