@@ -193,7 +193,9 @@ main { max-width: 1080px; margin-inline: auto; padding-bottom: calc(var(--tabs-h
 
 /* ---------- Einkaufsliste ---------- */
 .list-tools { display: flex; gap: 8px; margin-top: 12px; }
+.list-tools { flex-wrap: wrap; }
 .list-tools .btn.primary { flex: 1; max-width: 320px; }
+#clear.sure { background: var(--red); border-color: var(--red); color: #fff; }
 .list { padding: 4px 16px 0; }
 .list-hint { margin: 4px 2px 0; }
 .group { margin-top: 18px; }

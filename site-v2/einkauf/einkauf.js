@@ -277,6 +277,8 @@
     const tomorrowPlans = plansOn(addD(todayKey(), 1));
     $('#share').hidden = !open.length && !tomorrowPlans.length;
     $('#print').hidden = !open.length;
+    $('#clear').hidden = !open.length;
+    $('#clear span').textContent = t(clearSure ? 'sureClear' : 'clearList');
     const list = $('#list'); list.replaceChildren();
 
     if (!open.length) {
@@ -396,6 +398,26 @@
   }
   async function reopen(r, it) {
     try { await post('/reopen', { id: r.id, by: me }); toast(t('addedToast', { name: nameOf(it) })); } catch { toast(t('error')); }
+  }
+
+  // Ganze Liste leeren: erster Tipp fragt nach, zweiter löscht. Mit „Rückgängig“.
+  let clearSure = false, clearTimer;
+  function clearArm(on) {
+    clearSure = on;
+    const btn = $('#clear');
+    btn.classList.toggle('sure', on);
+    btn.querySelector('span').textContent = t(on ? 'sureClear' : 'clearList');
+    clearTimeout(clearTimer);
+    if (on) clearTimer = setTimeout(() => clearArm(false), 4000);
+  }
+  async function clearList() {
+    if (!clearSure) { clearArm(true); return; }
+    clearArm(false);
+    try {
+      const d = await post('/clear', { by: me });
+      if (d.cleared) toast(t('clearedToast', { n: num(d.cleared) }), t('undo'),
+        () => post('/unclear', {}).catch(() => toast(t('error'))));
+    } catch (e) { if (e.message !== 'pin') toast(t('error')); }
   }
 
   function shareText(wa = true) {
@@ -1263,6 +1285,7 @@
   $('#who').addEventListener('click', openWho);
   $('#share').addEventListener('click', openSend);
   $('#print').addEventListener('click', () => window.print());
+  $('#clear').addEventListener('click', clearList);
 
   renderStaticBeforeData();
   function renderStaticBeforeData() {

@@ -123,6 +123,24 @@ test('need → list → done → reopen → remove', async () => {
   assert.deepEqual(same, { v, same: true });
 });
 
+test('clear list + undo', async () => {
+  const post = async (p, body) => (await api(p, { method: 'POST', body })).json();
+  await post('/need', { item: 'tomaten', qty: 2, unit: 'kg' });
+  let s = await post('/need', { item: 'reis', qty: 5, unit: 'kg' });
+  await post('/done', { id: s.requests.find(r => r.item === 'reis' && r.st === 'open').id, by: 'Ali' });
+  await post('/need', { item: 'reis', qty: 1, unit: 'kg' });
+  s = await post('/clear', { by: 'Chef' });
+  assert.equal(s.cleared, 2);
+  assert.equal(s.requests.filter(r => r.st === 'open').length, 0);
+  assert.ok(s.requests.some(r => r.item === 'reis' && r.st === 'done'), 'bought stays');
+  s = await post('/unclear', {});
+  assert.equal(s.requests.filter(r => r.st === 'open').length, 2);
+  assert.equal((await api('/unclear', { method: 'POST', body: {} })).status, 404, 'only once');
+  s = await post('/clear', {});
+  assert.equal(s.requests.filter(r => r.st === 'open').length, 0);
+  assert.equal((await post('/clear', {})).cleared, 0, 'empty list is fine');
+});
+
 test('bad input rejected', async () => {
   assert.equal((await api('/need', { method: 'POST', body: { item: 'nope', qty: 1, unit: 'kg' } })).status, 400);
   assert.equal((await api('/need', { method: 'POST', body: { item: 'eier', qty: 0, unit: 'stk' } })).status, 400);

@@ -47,7 +47,7 @@ const DEFAULT_IDS = new Set(DEFAULT_ITEMS.map(i => i.id));
 // ---------------------------------------------------------------- Daten
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null, plans: [], shops: DEFAULT_SHOPS.map(s => ({ ...s })) }; }
+function emptyDb() { return { v: 1, custom: [], edits: {}, requests: [], subs: [], lastDaily: '', origin: '', boss: null, plans: [], lastClear: null, shops: DEFAULT_SHOPS.map(s => ({ ...s })) }; }
 
 function loadDb() {
   try {
@@ -62,6 +62,7 @@ function loadDb() {
       plans: Array.isArray(raw.plans) ? raw.plans : [],
       origin: typeof raw.origin === 'string' ? raw.origin : '',
       boss: raw.boss && typeof raw.boss === 'object' ? raw.boss : null,
+      lastClear: raw.lastClear && Array.isArray(raw.lastClear.reqs) ? raw.lastClear : null,
       shops: Array.isArray(raw.shops) ? raw.shops : DEFAULT_SHOPS.map(s => ({ ...s })),
     };
   } catch (e) {
@@ -186,6 +187,24 @@ const actions = {
     const i = db.requests.findIndex(r => r.id === b.id && r.st === 'open');
     if (i < 0) throw new Bad('not found', 404);
     db.requests.splice(i, 1);
+  },
+  // Liste leeren: alles Offene runter. Gekauftes, Kalender und Eingeplantes bleiben.
+  // Das Entfernte wird gemerkt, damit „Rückgängig“ es zurückholen kann.
+  clear(b) {
+    const open = db.requests.filter(r => r.st === 'open');
+    if (!open.length) return { cleared: 0 };
+    db.requests = db.requests.filter(r => r.st !== 'open');
+    db.lastClear = { at: Date.now(), by: clean(b.by, 40), reqs: open };
+    return { cleared: open.length };
+  },
+  unclear() {
+    const c = db.lastClear;
+    if (!c?.reqs?.length || Date.now() - c.at > 24 * 36e5) throw new Bad('nothing to restore', 404);
+    for (const r of c.reqs) {
+      if (!itemExists(r.item) || db.requests.some(x => x.st === 'open' && x.item === r.item)) continue;
+      db.requests.push(r);
+    }
+    db.lastClear = null;
   },
   done(b) {
     const r = db.requests.find(x => x.id === b.id);
@@ -563,7 +582,7 @@ async function api(req, res, url) {
     return json(res, 200, state());
   }
 
-  const am = p.match(/^\/(need|remove|done|reopen|item|edit|notfound|price|subscribe|unsubscribe|boss|plan|unplan|plandone|undoplan|shop|shopdel)$/);
+  const am = p.match(/^\/(need|remove|done|reopen|clear|unclear|item|edit|notfound|price|subscribe|unsubscribe|boss|plan|unplan|plandone|undoplan|shop|shopdel)$/);
   if (am && req.method === 'POST') {
     if (!String(req.headers['content-type'] || '').includes('application/json')) throw new Bad('json only', 415);
     let body;
